@@ -4,8 +4,11 @@ import { Disclaimer } from "@/components/Disclaimer";
 import { Reveal } from "@/components/Reveal";
 import heroImg from "@/assets/hero-family.jpg";
 import a1 from "@/assets/avatar-1.jpg";
+import a2 from "@/assets/avatar-2.jpg";
+import a3 from "@/assets/avatar-3.jpg";
 import a4 from "@/assets/avatar-4.jpg";
 import a5 from "@/assets/avatar-5.jpg";
+import a6 from "@/assets/avatar-6.jpg";
 import a7 from "@/assets/avatar-7.jpg";
 import a8 from "@/assets/avatar-8.jpg";
 
