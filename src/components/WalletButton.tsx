@@ -1,5 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
+import { ChevronDown, Wallet } from "lucide-react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { monadTestnet } from "@/lib/web3/chain";
 
 function short(addr: string) {
@@ -13,51 +21,73 @@ export function WalletButton() {
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: isSwitchPending } = useSwitchChain();
   const readyConnectors = connectors.filter((connector) => connector.ready);
-  const connectorButtons = readyConnectors.length > 0 ? readyConnectors : connectors;
+  const connectorOptions = readyConnectors.length > 0 ? readyConnectors : connectors;
+
+  const triggerClassName =
+    "inline-flex items-center gap-2 rounded-full bg-foreground px-3.5 py-2 text-xs font-semibold text-background shadow-sm transition-colors hover:bg-foreground/90 sm:text-sm";
 
   if (isConnected && address) {
     const wrongNetwork = chainId !== monadTestnet.id;
+
     return (
-      <button
-        onClick={() => {
-          if (wrongNetwork) {
-            switchChain({ chainId: monadTestnet.id });
-            return;
-          }
-          navigate({ to: "/dashboard" });
-        }}
-        className={
-          wrongNetwork
-            ? "px-4 py-2 rounded-full bg-destructive/10 text-destructive text-sm font-medium hover:bg-destructive/15 transition-colors"
-            : "px-4 py-2 rounded-full bg-surface border border-foreground/10 text-sm font-medium hover:bg-foreground/5 transition-colors"
-        }
-        title={wrongNetwork ? "Wrong network — switch to Monad Testnet" : "Go to your wallet dashboard"}
-      >
-        {wrongNetwork ? (isSwitchPending ? "Switching…" : "Switch network") : short(address)}
+      <DropdownMenu>
+        <DropdownMenuTrigger className={triggerClassName}>
+          <Wallet className="size-3.5" />
+          <span className="max-w-[7rem] truncate">{wrongNetwork ? "Wrong network" : short(address)}</span>
+          <ChevronDown className="size-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {wrongNetwork ? (
+            <DropdownMenuItem
+              onSelect={() => switchChain({ chainId: monadTestnet.id })}
+              disabled={isSwitchPending}
+            >
+              {isSwitchPending ? "Switching to Monad…" : "Switch to Monad Testnet"}
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => navigate({ to: "/dashboard" })}>
+              Open dashboard
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => disconnect()}
+            className="text-destructive focus:text-destructive"
+          >
+            Disconnect wallet
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
+  if (!connectorOptions.length) {
+    return (
+      <button className={triggerClassName} disabled>
+        <Wallet className="size-3.5" />
+        <span>No wallet</span>
       </button>
     );
   }
 
-  return connectorButtons.length > 1 ? (
-    <div className="flex flex-wrap gap-2">
-      {connectorButtons.map((connector) => (
-        <button
-          key={connector.id}
-          onClick={() => connect({ connector })}
-          disabled={isPending || !connector.ready}
-          className="px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors disabled:opacity-50"
-        >
-          {isPending ? "Connecting…" : `Connect ${connector.name}`}
-        </button>
-      ))}
-    </div>
-  ) : (
-    <button
-      onClick={() => connectorButtons[0] && connect({ connector: connectorButtons[0] })}
-      disabled={isPending || !connectorButtons[0]}
-      className="px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors disabled:opacity-50"
-    >
-      {isPending ? "Connecting…" : connectorButtons[0] ? `Connect ${connectorButtons[0].name}` : "No wallet found"}
-    </button>
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={triggerClassName}>
+        <Wallet className="size-3.5" />
+        <span>{isPending ? "Connecting…" : "Connect"}</span>
+        <ChevronDown className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        {connectorOptions.map((connector) => (
+          <DropdownMenuItem
+            key={connector.id}
+            onSelect={() => connect({ connector })}
+            disabled={isPending || !connector.ready}
+          >
+            {connector.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
