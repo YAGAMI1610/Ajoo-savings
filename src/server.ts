@@ -4,8 +4,14 @@ import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
 type ServerEntry = {
+  fetch: (request: Request, env?: unknown, ctx?: unknown) => Promise<Response> | Response;
+};
+
+type CloudflareHandler = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
+
+type NodeHandler = (request: Request) => Promise<Response> | Response;
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
@@ -44,18 +50,32 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
-export default {
-  async fetch(request: Request, env: unknown, ctx: unknown) {
-    try {
-      const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
-    } catch (error) {
-      console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
-    }
+async function runServerEntry(request: Request, env?: unknown, ctx?: unknown): Promise<Response> {
+  try {
+    const handler = await getServerEntry();
+    const response = await handler.fetch(request, env, ctx);
+    return await normalizeCatastrophicSsrResponse(response);
+  } catch (error) {
+    console.error(error);
+    return new Response(renderErrorPage(), {
+      status: 500,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+}
+
+const isCloudflareWorkersRuntime = typeof globalThis.caches !== "undefined";
+
+const cloudflareHandler: CloudflareHandler = {
+  async fetch(request, env, ctx) {
+    return runServerEntry(request, env, ctx);
   },
 };
+
+function createNodeHandler(): NodeHandler {
+  return async function handler(request: Request) {
+    return runServerEntry(request);
+  };
+}
+
+export default isCloudflareWorkersRuntime ? cloudflareHandler : createNodeHandler();
