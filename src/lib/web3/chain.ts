@@ -1,5 +1,6 @@
 import { defineChain } from "viem";
 import { createConfig, http, injected } from "wagmi";
+import { coinbaseWallet, metaMask, walletConnect } from "@wagmi/connectors";
 
 /**
  * Monad Testnet.
@@ -26,7 +27,12 @@ export const monadTestnet = defineChain({
 
 export const wagmiConfig = createConfig({
   chains: [monadTestnet],
-  connectors: [injected()],
+  connectors: [
+    metaMask({ chains: [monadTestnet] }),
+    walletConnect({ chains: [monadTestnet] }),
+    coinbaseWallet({ chains: [monadTestnet] }),
+    injected(),
+  ],
   transports: {
     [monadTestnet.id]: http(),
   },

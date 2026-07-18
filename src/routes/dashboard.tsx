@@ -39,10 +39,17 @@ function Dashboard() {
   const { data: myCircles, isLoading: circlesLoading } = useMyCircles(address);
   const circleAddresses = useMemo(() => ((myCircles as `0x${string}`[] | undefined) ?? []).filter(Boolean), [myCircles]);
   const [pendingInvites, setPendingInvites] = useState<string[]>([]);
-  const activeCircle = circleAddresses[0];
+  const [selectedCircle, setSelectedCircle] = useState<`0x${string}` | undefined>();
+  const activeCircle = selectedCircle ?? circleAddresses[0];
   const { data: circle, isLoading: circleLoading } = useCircleState(activeCircle);
   const countdown = useCountdown(circle?.roundDeadline);
-  const otherCircles = circleAddresses.slice(1);
+  const otherCircles = circleAddresses.filter((x) => x !== activeCircle);
+
+  useEffect(() => {
+    if (!selectedCircle && circleAddresses.length > 0) {
+      setSelectedCircle(circleAddresses[0]);
+    }
+  }, [circleAddresses, selectedCircle]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !address) return;
@@ -81,6 +88,8 @@ function Dashboard() {
       </Shell>
     );
   }
+
+  const walletText = address ? `${address.slice(0, 8)}…${address.slice(-6)}` : "Your wallet";
 
   if (circlesLoading) {
     return (
@@ -135,20 +144,44 @@ function Dashboard() {
     <Shell>
       <div className="max-w-md md:max-w-5xl mx-auto px-5 py-8 md:py-12 grid md:grid-cols-[1fr_360px] gap-8">
         <div className="space-y-8">
-          <header className="flex items-end justify-between flex-wrap gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium mb-1">
-                Your active circle
-              </p>
-              <h1 className="font-display text-4xl md:text-5xl leading-tight italic">
-                {circle.name || "Untitled circle"}
-              </h1>
+          <header className="space-y-6">
+            <div className="rounded-3xl bg-surface p-5 border border-foreground/10">
+              <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">Wallet profile</p>
+              <p className="mt-2 font-mono text-sm">{walletText}</p>
+              <p className="text-xs text-foreground/60 mt-2">{circleAddresses.length} active Ajoo circle{circleAddresses.length === 1 ? "" : "s"}</p>
+              {circleAddresses.length > 1 && (
+                <div className="mt-4 space-y-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">Your circles</p>
+                  <div className="grid gap-2">
+                    {circleAddresses.map((circleAddress) => (
+                      <button
+                        key={circleAddress}
+                        type="button"
+                        onClick={() => setSelectedCircle(circleAddress)}
+                        className={`w-full rounded-2xl border px-3 py-2 text-left text-sm ${circleAddress === activeCircle ? "bg-foreground text-background border-foreground/20" : "bg-background border-foreground/10 hover:bg-foreground/5"}`}
+                      >
+                        {shortAddress(circleAddress)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <span className="shrink-0 px-3 py-1 rounded-full bg-accent/10 text-accent text-xs font-bold uppercase tracking-widest">
-              {circle.status === "Active"
-                ? `Round ${circle.currentRound} of ${circle.maxParticipants}`
-                : circle.status}
-            </span>
+            <div className="flex items-end justify-between flex-wrap gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium mb-1">
+                  Your active circle
+                </p>
+                <h1 className="font-display text-4xl md:text-5xl leading-tight italic">
+                  {circle.name || "Untitled circle"}
+                </h1>
+              </div>
+              <span className="shrink-0 px-3 py-1 rounded-full bg-accent/10 text-accent text-xs font-bold uppercase tracking-widest">
+                {circle.status === "Active"
+                  ? `Round ${circle.currentRound} of ${circle.maxParticipants}`
+                  : circle.status}
+              </span>
+            </div>
           </header>
 
           <div className="rounded-[2rem] bg-foreground text-background p-7 md:p-9 space-y-4">
