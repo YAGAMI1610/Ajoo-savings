@@ -16,8 +16,8 @@ export function WalletButton() {
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: isSwitchPending } = useSwitchChain();
-  const readyConnectors = connectors.filter((connector) => connector.ready);
-  const connectorOptions = readyConnectors.length > 0 ? readyConnectors : connectors;
+
+  const injectedConnector = connectors.find((connector) => connector.id === "injected") ?? connectors[0];
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -98,47 +98,20 @@ export function WalletButton() {
     );
   }
 
-  if (!connectorOptions.length) {
-    return (
-      <button className={triggerClassName} disabled>
-        <Wallet className="size-3.5" />
-        <span>No wallet</span>
-      </button>
-    );
-  }
-
   return (
     <div ref={menuRef} className="relative">
       <button
         type="button"
-        onClick={() => setMenuOpen((open) => !open)}
+        onClick={() => {
+          if (!injectedConnector) return;
+          connect({ connector: injectedConnector });
+        }}
+        disabled={isPending || !injectedConnector}
         className={triggerClassName}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
       >
         <Wallet className="size-3.5" />
-        <span>{isPending ? "Connecting…" : "Connect"}</span>
-        <ChevronDown className="size-3.5" />
+        <span>{isPending ? "Connecting…" : "Connect wallet"}</span>
       </button>
-
-      {menuOpen ? (
-        <div className={panelClassName} role="menu">
-          {connectorOptions.map((connector) => (
-            <button
-              key={connector.id}
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                connect({ connector });
-              }}
-              disabled={isPending || !connector.ready}
-              className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-foreground/5 disabled:opacity-50"
-            >
-              {connector.name}
-            </button>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }

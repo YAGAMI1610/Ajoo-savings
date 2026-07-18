@@ -157,7 +157,15 @@ export function useCreateCircle() {
     });
   }
 
-  return { createCircle, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
+  return {
+    createCircle,
+    hash,
+    isPending,
+    isConfirming: receipt.isLoading,
+    isConfirmed: receipt.isSuccess,
+    receipt: receipt.data,
+    error,
+  };
 }
 
 export function useJoinCircle(circleAddress?: `0x${string}`, isNative = true) {

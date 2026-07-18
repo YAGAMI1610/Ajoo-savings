@@ -1,12 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { decodeEventLog } from "viem";
 import { useAccount } from "wagmi";
 import { SiteNav } from "@/components/SiteNav";
 import { Disclaimer } from "@/components/Disclaimer";
 import { useCreateCircle } from "@/hooks/useCircles";
 import { generateInviteCode, hashInviteCode, inviteLink } from "@/lib/invite";
 import { registerInvite } from "@/lib/inviteRegistry";
-import { IS_FACTORY_CONFIGURED, TOKENS, type Frequency, type TokenSymbol } from "@/lib/web3/contracts";
+import { circleFactoryAbi, IS_FACTORY_CONFIGURED, TOKENS, type Frequency, type TokenSymbol } from "@/lib/web3/contracts";
 import { monadTestnet } from "@/lib/web3/chain";
 
 export const Route = createFileRoute("/create")({
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/create")({
 function CreateCircle() {
   const { address, isConnected } = useAccount();
   const navigate = useNavigate();
-  const { createCircle, isPending, isConfirming, isConfirmed, hash, error } = useCreateCircle();
+  const { createCircle, isPending, isConfirming, isConfirmed, hash, receipt, error } = useCreateCircle();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -37,6 +38,28 @@ function CreateCircle() {
   const [savedLocally, setSavedLocally] = useState(false);
 
   const selectedToken = TOKENS[tokenSymbol];
+
+  const createdCircleAddress = useMemo(() => {
+    if (!receipt?.logs?.length) return null;
+
+    for (const log of receipt.logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: circleFactoryAbi,
+          data: log.data,
+          topics: log.topics,
+        });
+
+        if (decoded.eventName === "CircleCreated" && typeof decoded.args.circle === "string") {
+          return decoded.args.circle as `0x${string}`;
+        }
+      } catch {
+        // ignore unrelated logs and continue decoding the rest
+      }
+    }
+
+    return null;
+  }, [receipt]);
 
   const canSubmit =
     IS_FACTORY_CONFIGURED &&
@@ -63,21 +86,24 @@ function CreateCircle() {
     });
   }
 
-  // Once the tx is confirmed we don't yet know the deployed circle address
-  // client-side without reading the CircleCreated event — for the hackathon
-  // build we persist the invite code against the wallet+timestamp locally and
-  // point people to the dashboard, which resolves "my circles" from the
-  // factory directly.
-  if (isConfirmed && !savedLocally) {
-    if (typeof window !== "undefined" && address) {
+  useEffect(() => {
+    if (!isConfirmed || savedLocally || !createdCircleAddress || !address) return;
+
+    if (typeof window !== "undefined") {
       window.localStorage.setItem(`pending-invite:${address}`, inviteCode);
       window.localStorage.setItem(`invite:${address}`, inviteCode);
     }
+
     registerInvite({
-      data: { codeHash: hashInviteCode(inviteCode), circleAddress: "pending", chainId: monadTestnet.id },
+      data: {
+        codeHash: hashInviteCode(inviteCode),
+        circleAddress: createdCircleAddress,
+        chainId: monadTestnet.id,
+      },
     }).catch(() => {});
+
     setSavedLocally(true);
-  }
+  }, [address, createdCircleAddress, inviteCode, isConfirmed, savedLocally]);
 
   return (
     <div className="min-h-screen bg-background">
