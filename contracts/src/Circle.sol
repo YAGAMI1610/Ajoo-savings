@@ -114,6 +114,7 @@ contract Circle {
     event SeedRevealed(address indexed member);
     event PayoutOrderDrawn(address[] order, uint256 seed);
     event ContributionMade(address indexed member, uint16 round, uint256 amount);
+    event FundsDeposited(address indexed creator, uint256 amount);
     event PayoutSent(address indexed recipient, uint16 round, uint256 amount);
     event RoundAdvanced(uint16 newRound);
     event CircleCompleted(uint256 timestamp);
@@ -344,6 +345,20 @@ contract Circle {
     // ---------------------------------------------------------------------
     // Contribution rounds + automatic payout
     // ---------------------------------------------------------------------
+
+    function fundCircle(uint256 amount) external payable onlyCreator {
+        require(amount > 0, "Circle: zero deposit");
+
+        if (token == address(0)) {
+            require(msg.value == amount, "Circle: wrong native deposit");
+        } else {
+            require(msg.value == 0, "Circle: no native value for token circles");
+            require(IERC20(token).transferFrom(msg.sender, address(this), amount), "Circle: deposit transfer failed");
+        }
+
+        poolBalance += amount;
+        emit FundsDeposited(msg.sender, amount);
+    }
 
     function contribute() external payable onlyMember {
         require(status == Status.Active, "Circle: not active");

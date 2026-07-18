@@ -36,7 +36,8 @@ contract CircleTest is Test {
             5,
             collateral,
             inviteHash,
-            address(0)
+            address(0),
+            0
         );
         return Circle(addr);
     }
@@ -161,6 +162,13 @@ contract CircleTest is Test {
         vm.prank(bob);
         vm.expectRevert("Circle: not active");
         c.contribute{value: 1 ether}();
+    }
+
+    function test_CreatorCanFundCircleSeparately() public {
+        Circle c = _create(0);
+        vm.prank(creator);
+        c.fundCircle{value: 2 ether}(2 ether);
+        assertEq(c.poolBalance(), 2 ether);
     }
 
     function test_CollateralSlashRedistributesToRemainingMembers() public {

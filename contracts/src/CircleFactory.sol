@@ -3,6 +3,10 @@ pragma solidity 0.8.24;
 
 import {Circle} from "./Circle.sol";
 
+interface IERC20 {
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+}
+
 /// @title CircleFactory
 /// @notice Creates private savings circles and gives every wallet a persistent
 ///         reputation record (circles completed, defaults) across all circles it
@@ -44,8 +48,9 @@ contract CircleFactory {
         uint8 maxParticipants,
         uint256 collateralRequired,
         bytes32 inviteCodeHash,
-        address token
-    ) external returns (address circleAddress) {
+        address token,
+        uint256 initialDepositAmount
+    ) external payable returns (address circleAddress) {
         Circle circle = new Circle(
             msg.sender,
             circleName,
@@ -62,6 +67,19 @@ contract CircleFactory {
         allCircles.push(circleAddress);
         isCircle[circleAddress] = true;
         circlesByMember[msg.sender].push(circleAddress);
+
+        if (token == address(0)) {
+            require(msg.value >= initialDepositAmount, "Factory: insufficient native deposit");
+            if (initialDepositAmount > 0) {
+                (bool ok, ) = payable(circleAddress).call{value: initialDepositAmount}("");
+                require(ok, "Factory: native deposit failed");
+            }
+        } else {
+            require(msg.value == 0, "Factory: no native value for token circles");
+            if (initialDepositAmount > 0) {
+                require(IERC20(token).transferFrom(msg.sender, circleAddress, initialDepositAmount), "Factory: token deposit failed");
+            }
+        }
 
         emit CircleCreated(
             circleAddress,
