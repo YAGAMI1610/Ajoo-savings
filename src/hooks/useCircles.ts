@@ -132,10 +132,12 @@ export function useCreateCircle() {
     frequency: Frequency;
     maxParticipants: number;
     collateralAmount: string;
+    initialDepositAmount: string;
     inviteCode: string;
     tokenSymbol: TokenSymbol;
   }) {
     const token = TOKENS[params.tokenSymbol];
+    const initialDeposit = parseUnits(params.initialDepositAmount || "0", token.decimals);
     writeContract({
       address: CIRCLE_FACTORY_ADDRESS,
       abi: circleFactoryAbi,
@@ -149,7 +151,9 @@ export function useCreateCircle() {
         parseUnits(params.collateralAmount || "0", token.decimals),
         hashInviteCode(params.inviteCode),
         token.address,
+        initialDeposit,
       ],
+      value: token.isNative ? initialDeposit : 0n,
     });
   }
 
@@ -173,6 +177,24 @@ export function useJoinCircle(circleAddress?: `0x${string}`, isNative = true) {
   }
 
   return { join, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
+}
+
+export function useFundCircle(circleAddress?: `0x${string}`, isNative = true) {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash });
+
+  function fund(amount: bigint) {
+    if (!circleAddress) return;
+    writeContract({
+      address: circleAddress,
+      abi: circleAbi,
+      functionName: "fundCircle",
+      args: [amount],
+      value: isNative ? amount : 0n,
+    });
+  }
+
+  return { fund, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
 }
 
 export function useContribute(circleAddress?: `0x${string}`, isNative = true) {

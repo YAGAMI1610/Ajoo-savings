@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useAccount } from "wagmi";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
 import { SiteNav } from "@/components/SiteNav";
 import { Disclaimer } from "@/components/Disclaimer";
@@ -18,8 +18,11 @@ export const Route = createFileRoute("/join/$code")({
 
 function JoinCircle() {
   const { code } = useParams({ from: "/join/$code" });
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const [resolvedAddress, setResolvedAddress] = useState<`0x${string}` | null | undefined>(undefined);
+  const [manualAddress, setManualAddress] = useState("");
+  const [joinMode, setJoinMode] = useState<"code" | "address">("code");
+  const [requestStatus, setRequestStatus] = useState<string | null>(null);
 
   useEffect(() => {
     resolveInvite({ data: { codeHash: hashInviteCode(code) } })
@@ -27,15 +30,25 @@ function JoinCircle() {
       .catch(() => setResolvedAddress(null));
   }, [code]);
 
-  const { data: circle } = useCircleState(resolvedAddress ?? undefined);
+  const targetAddress = useMemo(() => {
+    if (joinMode === "address") {
+      return manualAddress && /^0x[a-fA-F0-9]{40}$/.test(manualAddress) ? (manualAddress as `0x${string}`) : undefined;
+    }
+    if (code && /^0x[a-fA-F0-9]{40}$/.test(code)) {
+      return code as `0x${string}`;
+    }
+    return resolvedAddress ?? undefined;
+  }, [joinMode, manualAddress, resolvedAddress, code]);
+
+  const { data: circle } = useCircleState(targetAddress);
   const isNative = circle?.tokenConfig?.isNative ?? true;
-  const { join, isPending, isConfirming, isConfirmed, error } = useJoinCircle(resolvedAddress ?? undefined, isNative);
+  const { join, isPending, isConfirming, isConfirmed, error } = useJoinCircle(targetAddress, isNative);
   const {
     approve,
     hasSufficientAllowance,
     isPending: isApprovePending,
     isConfirming: isApproveConfirming,
-  } = useTokenApproval(circle?.token, resolvedAddress ?? undefined);
+  } = useTokenApproval(circle?.token, targetAddress);
 
   const collateral = circle?.collateralRequired ?? 0n;
   const needsApproval = !isNative && collateral > 0n && !hasSufficientAllowance(collateral);
@@ -48,7 +61,7 @@ function JoinCircle() {
     );
   }
 
-  if (resolvedAddress === undefined) {
+  if (joinMode === "code" && resolvedAddress === undefined) {
     return (
       <Shell>
         <div className="text-center py-16 text-sm text-foreground/50">Looking up invite…</div>
@@ -56,7 +69,7 @@ function JoinCircle() {
     );
   }
 
-  if (resolvedAddress === null) {
+  if (joinMode === "code" && resolvedAddress === null) {
     return (
       <Shell>
         <Notice
@@ -71,6 +84,42 @@ function JoinCircle() {
     <Shell>
       <div className="max-w-lg mx-auto px-5 py-10 md:py-16 space-y-8">
         <Disclaimer />
+        <div className="rounded-2xl bg-surface p-4 space-y-3">
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setJoinMode("code")} className={`flex-1 rounded-full px-3 py-2 text-sm ${joinMode === "code" ? "bg-foreground text-background" : "bg-background"}`}>
+              Join with invite code
+            </button>
+            <button type="button" onClick={() => setJoinMode("address")} className={`flex-1 rounded-full px-3 py-2 text-sm ${joinMode === "address" ? "bg-foreground text-background" : "bg-background"}`}>
+              Join with wallet address
+            </button>
+          </div>
+          {joinMode === "address" && (
+            <div className="space-y-2">
+              <input value={manualAddress} onChange={(e) => setManualAddress(e.target.value)} placeholder="0x..." className="input" />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!address || !manualAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+                    setRequestStatus("Enter a valid wallet address first.");
+                    return;
+                  }
+                  if (typeof window !== "undefined") {
+                    const current = window.localStorage.getItem(`pending-invites:${address}`);
+                    const invites = current ? JSON.parse(current) : [];
+                    const next = invites.includes(manualAddress) ? invites : [...invites, manualAddress];
+                    window.localStorage.setItem(`pending-invites:${address}`, JSON.stringify(next));
+                  }
+                  setRequestStatus("Invite request saved. Open your dashboard to accept it.");
+                }}
+                className="w-full rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background"
+              >
+                Send join request
+              </button>
+              <p className="text-xs text-foreground/60">Enter the Ajoo savings address you were invited to. Ajoo stores the request locally for your wallet so you can accept it from the dashboard once connected.</p>
+              {requestStatus && <p className="text-xs text-accent">{requestStatus}</p>}
+            </div>
+          )}
+        </div>
         {!circle ? (
           <div className="text-center py-10 text-sm text-foreground/50">Loading circle…</div>
         ) : (
@@ -95,6 +144,7 @@ function JoinCircle() {
               }
             />
 
+            {address && <p className="text-xs text-foreground/60">Connected wallet: {address.slice(0, 8)}…{address.slice(-4)}</p>}
             {circle.status !== "Open" ? (
               <p className="text-sm text-clay">This circle is no longer accepting new members.</p>
             ) : isConfirmed ? (
@@ -119,6 +169,10 @@ function JoinCircle() {
               </button>
             )}
             {error && <p className="text-xs text-red-300">{error.message}</p>}
+            <div className="rounded-2xl border border-foreground/10 bg-background/70 p-4 text-sm text-foreground/70">
+              <p className="font-medium">Invitation request</p>
+              <p className="mt-1 text-xs">When the creator sends you an invite, Ajoo will surface a request in your dashboard and you can accept it from your wallet once connected.</p>
+            </div>
           </div>
         )}
         {isConfirmed && (

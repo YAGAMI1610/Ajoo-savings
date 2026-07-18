@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAccount } from "wagmi";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
 import { SiteNav } from "@/components/SiteNav";
 import { Disclaimer } from "@/components/Disclaimer";
 import { SavingsWheel } from "@/components/SavingsWheel";
 import { useMyCircles, useCircleState } from "@/hooks/useCircles";
-import { buildMembers } from "@/lib/circleMembers";
+import { buildMembers, shortAddress } from "@/lib/circleMembers";
 import { IS_FACTORY_CONFIGURED } from "@/lib/web3/contracts";
 
 export const Route = createFileRoute("/dashboard")({
@@ -37,9 +37,26 @@ function useCountdown(deadline?: bigint) {
 function Dashboard() {
   const { address, isConnected } = useAccount();
   const { data: myCircles, isLoading: circlesLoading } = useMyCircles(address);
-  const activeCircle = (myCircles as `0x${string}`[] | undefined)?.[0];
+  const circleAddresses = useMemo(() => ((myCircles as `0x${string}`[] | undefined) ?? []).filter(Boolean), [myCircles]);
+  const [pendingInvites, setPendingInvites] = useState<string[]>([]);
+  const activeCircle = circleAddresses[0];
   const { data: circle, isLoading: circleLoading } = useCircleState(activeCircle);
   const countdown = useCountdown(circle?.roundDeadline);
+  const otherCircles = circleAddresses.slice(1);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !address) return;
+    const stored = window.localStorage.getItem(`pending-invites:${address}`);
+    if (stored) {
+      try {
+        setPendingInvites(JSON.parse(stored));
+      } catch {
+        setPendingInvites([]);
+      }
+    } else {
+      setPendingInvites([]);
+    }
+  }, [address]);
 
   if (!IS_FACTORY_CONFIGURED) {
     return (
@@ -179,6 +196,28 @@ function Dashboard() {
               <p className="text-sm text-foreground/50 text-center py-10">No members yet</p>
             )}
           </div>
+
+          {pendingInvites.length > 0 && (
+            <div className="rounded-[2rem] bg-surface p-6 md:p-8 space-y-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">Pending invitations</p>
+              {pendingInvites.map((inviteAddress) => (
+                <Link key={inviteAddress} to={`/join/${encodeURIComponent(inviteAddress)}`} className="block rounded-2xl border border-foreground/10 bg-background px-3 py-3 text-sm">
+                  Accept invitation for {shortAddress(inviteAddress)}
+                </Link>
+              ))}
+            </div>
+          )}
+
+          {otherCircles.length > 0 && (
+            <div className="rounded-[2rem] bg-surface p-6 md:p-8 space-y-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">Other circles</p>
+              {otherCircles.map((circleAddress) => (
+                <Link key={circleAddress} to="/group" className="block rounded-2xl border border-foreground/10 bg-background px-3 py-3 text-sm">
+                  {shortAddress(circleAddress)}
+                </Link>
+              ))}
+            </div>
+          )}
         </aside>
       </div>
 

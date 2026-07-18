@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAccount } from "wagmi";
 import { useState } from "react";
-import { formatUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import { SiteNav } from "@/components/SiteNav";
-import { useMyCircles, useCircleState, useContribute, useMemberInfo, useTokenApproval } from "@/hooks/useCircles";
+import { useMyCircles, useCircleState, useContribute, useFundCircle, useMemberInfo, useTokenApproval } from "@/hooks/useCircles";
 import { buildMembers, shortAddress } from "@/lib/circleMembers";
 import { inviteLink } from "@/lib/invite";
 import { IS_FACTORY_CONFIGURED } from "@/lib/web3/contracts";
@@ -26,6 +26,8 @@ function GroupDetails() {
   const { data: myMember } = useMemberInfo(activeCircle, address);
   const isNative = circle?.tokenConfig?.isNative ?? true;
   const { contribute, isPending, isConfirming, isConfirmed, error } = useContribute(activeCircle, isNative);
+  const { fund, isPending: isFundPending, isConfirming: isFundConfirming, isConfirmed: isFundConfirmed, error: fundError } = useFundCircle(activeCircle, isNative);
+  const [fundAmount, setFundAmount] = useState("");
   const {
     approve,
     hasSufficientAllowance,
@@ -101,6 +103,36 @@ function GroupDetails() {
           <InviteCard circleAddress={activeCircle} invitesLocked={circle.invitesLocked} />
         )}
 
+        {circle.creator?.toLowerCase() === address?.toLowerCase() && (
+          <div className="rounded-2xl bg-surface border border-foreground/10 p-6 space-y-3">
+            <h3 className="text-sm font-semibold">Fund this circle</h3>
+            <p className="text-sm text-foreground/60">Add extra MON or USDC to the circle balance. This is charged alongside the gas for the funding transaction.</p>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min="0"
+                step={isNative ? "0.001" : "0.01"}
+                value={fundAmount}
+                onChange={(e) => setFundAmount(e.target.value)}
+                className="input flex-1"
+                placeholder="0.1"
+              />
+              <button
+                onClick={() => {
+                  if (!fundAmount) return;
+                  fund(parseUnits(fundAmount, isNative ? 18 : 6));
+                }}
+                disabled={isFundPending || isFundConfirming}
+                className="px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition disabled:opacity-50"
+              >
+                {isFundPending || isFundConfirming ? "Confirming…" : `Fund ${circle.tokenConfig.symbol}`}
+              </button>
+            </div>
+            {isFundConfirmed && <p className="text-xs text-moss">Funding transaction confirmed.</p>}
+            {fundError && <p className="text-xs text-destructive">{fundError.message}</p>}
+          </div>
+        )}
+
         {circle.status === "Active" && member?.exists && (
           <div className="rounded-2xl bg-surface border border-foreground/10 p-6 space-y-3">
             <h3 className="text-sm font-semibold">Round {circle.currentRound} contribution</h3>
@@ -169,7 +201,9 @@ function InviteCard({ circleAddress, invitesLocked }: { circleAddress: `0x${stri
   // The plaintext invite code is generated once at creation time and only the
   // creator holds it (stored locally); this card assumes it's already been
   // shared. In the create flow we surface + persist it right after deploy.
-  const stored = typeof window !== "undefined" ? window.localStorage.getItem(`invite:${circleAddress}`) : null;
+  const stored = typeof window !== "undefined"
+    ? window.localStorage.getItem(`invite:${circleAddress}`) ?? window.localStorage.getItem(`invite:${window.ethereum?.selectedAddress ?? ""}`)
+    : null;
 
   if (!stored) {
     return (

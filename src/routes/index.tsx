@@ -4,11 +4,8 @@ import { Disclaimer } from "@/components/Disclaimer";
 import { Reveal } from "@/components/Reveal";
 import heroImg from "@/assets/hero-family.jpg";
 import a1 from "@/assets/avatar-1.jpg";
-import a2 from "@/assets/avatar-2.jpg";
-import a3 from "@/assets/avatar-3.jpg";
 import a4 from "@/assets/avatar-4.jpg";
 import a5 from "@/assets/avatar-5.jpg";
-import a6 from "@/assets/avatar-6.jpg";
 import a7 from "@/assets/avatar-7.jpg";
 import a8 from "@/assets/avatar-8.jpg";
 
@@ -226,61 +223,18 @@ function Landing() {
         </div>
       </section>
 
-      {/* Testimonials */}
       <section className="px-5 py-20">
         <div className="max-w-5xl mx-auto">
           <Reveal>
-            <h2 className="font-display text-4xl md:text-5xl mb-12 max-w-xl">
-              The trust of an <em className="italic">Ajo</em>, in your pocket.
+            <h2 className="font-display text-4xl md:text-5xl mb-8 max-w-xl">
+              Built for trusted circles, not public speculation.
             </h2>
           </Reveal>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                quote:
-                  "My mother, my sisters, and I have been running a monthly circle for years. Ajoo finally made it painless.",
-                name: "Aisha O.",
-                role: "Lagos · Family circle of 8",
-                img: a3,
-              },
-              {
-                quote:
-                  "It feels like a WhatsApp group with a shared piggy bank. No spreadsheets, no chasing anyone for cash.",
-                name: "Marcus C.",
-                role: "London · Friends circle of 6",
-                img: a2,
-              },
-              {
-                quote:
-                  "I love that everyone can see the payout order. My uncle finally trusted me to organize it.",
-                name: "Nia A.",
-                role: "Accra · Cousins circle of 12",
-                img: a6,
-              },
-            ].map((t, i) => (
-              <Reveal key={t.name} delay={i * 120}>
-                <figure className="p-6 rounded-3xl bg-surface border border-foreground/5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-500">
-                  <blockquote className="text-foreground/80 leading-relaxed text-pretty mb-6">
-                    "{t.quote}"
-                  </blockquote>
-                  <figcaption className="flex items-center gap-3">
-                    <img
-                      src={t.img}
-                      alt=""
-                      width={48}
-                      height={48}
-                      loading="lazy"
-                      className="size-10 rounded-full object-cover"
-                    />
-                    <div>
-                      <div className="text-sm font-semibold">{t.name}</div>
-                      <div className="text-xs text-foreground/50">{t.role}</div>
-                    </div>
-                  </figcaption>
-                </figure>
-              </Reveal>
-            ))}
-          </div>
+          <Reveal delay={120}>
+            <div className="rounded-[2rem] border border-foreground/10 bg-surface p-8 text-foreground/70 leading-relaxed">
+              Ajoo keeps the flow private, transparent, and onchain so each member can see the rules, the contribution schedule, and the payout order without relying on a spreadsheet or a side chat.
+            </div>
+          </Reveal>
         </div>
       </section>
 

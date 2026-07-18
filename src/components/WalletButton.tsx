@@ -1,4 +1,5 @@
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { useNavigate } from "@tanstack/react-router";
+import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { monadTestnet } from "@/lib/web3/chain";
 
 function short(addr: string) {
@@ -6,23 +7,31 @@ function short(addr: string) {
 }
 
 export function WalletButton() {
+  const navigate = useNavigate();
   const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
+  const { switchChain, isPending: isSwitchPending } = useSwitchChain();
 
   if (isConnected && address) {
     const wrongNetwork = chainId !== monadTestnet.id;
     return (
       <button
-        onClick={() => disconnect()}
+        onClick={() => {
+          if (wrongNetwork) {
+            switchChain({ chainId: monadTestnet.id });
+            return;
+          }
+          navigate({ to: "/dashboard" });
+        }}
         className={
           wrongNetwork
             ? "px-4 py-2 rounded-full bg-destructive/10 text-destructive text-sm font-medium hover:bg-destructive/15 transition-colors"
             : "px-4 py-2 rounded-full bg-surface border border-foreground/10 text-sm font-medium hover:bg-foreground/5 transition-colors"
         }
-        title={wrongNetwork ? "Wrong network — click to disconnect and switch to Monad Testnet" : "Click to disconnect"}
+        title={wrongNetwork ? "Wrong network — switch to Monad Testnet" : "Click to disconnect"}
       >
-        {wrongNetwork ? "Wrong network" : short(address)}
+        {wrongNetwork ? (isSwitchPending ? "Switching…" : "Switch network") : short(address)}
       </button>
     );
   }

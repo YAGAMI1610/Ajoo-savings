@@ -31,6 +31,7 @@ function CreateCircle() {
   const [frequency, setFrequency] = useState<Frequency>("weekly");
   const [maxParticipants, setMaxParticipants] = useState(5);
   const [collateral, setCollateral] = useState("0");
+  const [initialDeposit, setInitialDeposit] = useState("0");
   const [acknowledged, setAcknowledged] = useState(false);
   const [inviteCode] = useState(() => generateInviteCode());
   const [savedLocally, setSavedLocally] = useState(false);
@@ -56,6 +57,7 @@ function CreateCircle() {
       frequency,
       maxParticipants,
       collateralAmount: collateral,
+      initialDepositAmount: initialDeposit,
       inviteCode,
       tokenSymbol,
     });
@@ -67,8 +69,9 @@ function CreateCircle() {
   // point people to the dashboard, which resolves "my circles" from the
   // factory directly.
   if (isConfirmed && !savedLocally) {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && address) {
       window.localStorage.setItem(`pending-invite:${address}`, inviteCode);
+      window.localStorage.setItem(`invite:${address}`, inviteCode);
     }
     registerInvite({
       data: { codeHash: hashInviteCode(inviteCode), circleAddress: "pending", chainId: monadTestnet.id },
@@ -150,6 +153,7 @@ function CreateCircle() {
                         setTokenSymbol(sym);
                         setAmount(sym === "USDC" ? "5" : "0.05");
                         setCollateral("0");
+                        setInitialDeposit("0");
                       }}
                       className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition text-left ${
                         tokenSymbol === sym
@@ -214,6 +218,20 @@ function CreateCircle() {
                 />
               </Field>
             </div>
+
+            <Field label={`Initial deposit to fund the circle (${selectedToken.symbol}, optional)`}>
+              <input
+                type="number"
+                min="0"
+                step={selectedToken.isNative ? "0.001" : "0.01"}
+                value={initialDeposit}
+                onChange={(e) => setInitialDeposit(e.target.value)}
+                className="input"
+              />
+              <p className="text-xs text-foreground/50">
+                This amount is charged alongside the gas for creating the circle and becomes the opening balance.
+              </p>
+            </Field>
 
             <label className="flex items-start gap-3 text-sm text-foreground/70">
               <input
