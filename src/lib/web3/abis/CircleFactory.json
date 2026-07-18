@@ -1,0 +1,71 @@
+[
+  {
+    "type": "function",
+    "name": "createCircle",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "circleName", "type": "string" },
+      { "name": "description", "type": "string" },
+      { "name": "contributionAmount", "type": "uint256" },
+      { "name": "frequencySeconds", "type": "uint256" },
+      { "name": "maxParticipants", "type": "uint8" },
+      { "name": "collateralRequired", "type": "uint256" },
+      { "name": "inviteCodeHash", "type": "bytes32" },
+      { "name": "token", "type": "address" }
+    ],
+    "outputs": [{ "name": "circleAddress", "type": "address" }]
+  },
+  {
+    "type": "function",
+    "name": "getCirclesForMember",
+    "stateMutability": "view",
+    "inputs": [{ "name": "member", "type": "address" }],
+    "outputs": [{ "name": "", "type": "address[]" }]
+  },
+  {
+    "type": "function",
+    "name": "totalCirclesCreated",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256" }]
+  },
+  {
+    "type": "function",
+    "name": "isTrustedSaver",
+    "stateMutability": "view",
+    "inputs": [{ "name": "member", "type": "address" }],
+    "outputs": [{ "name": "", "type": "bool" }]
+  },
+  {
+    "type": "function",
+    "name": "reputationOf",
+    "stateMutability": "view",
+    "inputs": [{ "name": "", "type": "address" }],
+    "outputs": [
+      { "name": "circlesCompleted", "type": "uint32" },
+      { "name": "circlesDefaulted", "type": "uint32" }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "isCircle",
+    "stateMutability": "view",
+    "inputs": [{ "name": "", "type": "address" }],
+    "outputs": [{ "name": "", "type": "bool" }]
+  },
+  {
+    "type": "event",
+    "name": "CircleCreated",
+    "inputs": [
+      { "name": "circle", "type": "address", "indexed": true },
+      { "name": "creator", "type": "address", "indexed": true },
+      { "name": "name", "type": "string", "indexed": false },
+      { "name": "contributionAmount", "type": "uint256", "indexed": false },
+      { "name": "frequencySeconds", "type": "uint256", "indexed": false },
+      { "name": "maxParticipants", "type": "uint8", "indexed": false },
+      { "name": "collateralRequired", "type": "uint256", "indexed": false },
+      { "name": "token", "type": "address", "indexed": false }
+    ],
+    "anonymous": false
+  }
+]

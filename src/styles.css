@@ -1,0 +1,197 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-cream: var(--cream);
+  --color-clay: var(--clay);
+  --color-sage: var(--sage);
+  --color-moss: var(--moss);
+}
+
+:root {
+  --radius: 0.875rem;
+
+  /* Heritage warmth palette */
+  --background: oklch(0.975 0.014 82);      /* cream #FCF9F5 */
+  --foreground: oklch(0.31 0.045 195);      /* deep teal #0D3B3F */
+  --cream: oklch(0.975 0.014 82);
+  --surface: oklch(1 0 0);
+  --ink: oklch(0.31 0.045 195);
+  --clay: oklch(0.72 0.135 42);             /* terracotta #E57C58 */
+  --sage: oklch(0.68 0.035 165);            /* muted sage */
+  --moss: oklch(0.62 0.09 155);
+
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+  --primary: var(--ink);
+  --primary-foreground: var(--cream);
+  --secondary: oklch(0.94 0.02 82);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.94 0.02 82);
+  --muted-foreground: oklch(0.55 0.025 180);
+  --accent: var(--clay);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.6 0.19 27);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.31 0.045 195 / 8%);
+  --input: oklch(0.31 0.045 195 / 12%);
+  --ring: var(--clay);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html, body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .font-display { font-family: var(--font-display); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes celebrate {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes wheel-spin-decel {
+  0% { transform: rotate(0deg); }
+  70% { transform: rotate(1080deg); }
+  100% { transform: rotate(1155deg); }
+}
+@keyframes soft-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--clay) 40%, transparent); }
+  50% { box-shadow: 0 0 0 14px color-mix(in oklab, var(--clay) 0%, transparent); }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(600px) rotate(720deg); opacity: 0; }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0,0,0) scale(1); }
+  50% { transform: translate3d(20px,-30px,0) scale(1.05); }
+}
+@keyframes drift-slow {
+  0%, 100% { transform: translate3d(0,0,0) scale(1); }
+  50% { transform: translate3d(-30px,20px,0) scale(1.08); }
+}
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes float-y-lg {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-16px) rotate(2deg); }
+}
+@keyframes orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes coin-drop {
+  0% { transform: translateY(-30px) rotate(0deg); opacity: 0; }
+  40% { opacity: 1; }
+  70% { transform: translateY(6px) rotate(200deg); }
+  100% { transform: translateY(0) rotate(360deg); opacity: 1; }
+}
+@keyframes shimmer-line {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes underline-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@utility animate-spin-slow { animation: spin-slow 40s linear infinite; }
+@utility animate-celebrate { animation: celebrate 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@utility animate-wheel-reveal { animation: wheel-spin-decel 4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@utility animate-soft-pulse { animation: soft-pulse 2.4s ease-in-out infinite; }
+@utility animate-fade-up { animation: fade-up 0.6s ease-out both; }
+@utility animate-confetti { animation: confetti-fall 3s linear infinite; }
+@utility animate-drift { animation: drift 14s ease-in-out infinite; }
+@utility animate-drift-slow { animation: drift-slow 22s ease-in-out infinite; }
+@utility animate-float-y { animation: float-y 5s ease-in-out infinite; }
+@utility animate-float-y-lg { animation: float-y-lg 7s ease-in-out infinite; }
+@utility animate-orbit { animation: orbit 60s linear infinite; }
+@utility animate-orbit-reverse { animation: orbit 90s linear infinite reverse; }
+@utility animate-marquee { animation: marquee 40s linear infinite; }
+@utility animate-coin-drop { animation: coin-drop 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@utility animate-underline-draw { animation: underline-draw 1.2s ease-out 0.4s both; transform-origin: left; }
+
+.input {
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.85rem;
+  background: var(--surface);
+  border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.input:focus {
+  border-color: var(--accent);
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+

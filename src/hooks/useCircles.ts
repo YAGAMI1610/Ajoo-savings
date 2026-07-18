@@ -1,0 +1,236 @@
+import { useMemo } from "react";
+import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { parseUnits } from "viem";
+import {
+  CIRCLE_FACTORY_ADDRESS,
+  IS_FACTORY_CONFIGURED,
+  circleAbi,
+  circleFactoryAbi,
+  erc20Abi,
+  type Frequency,
+  FREQUENCY_SECONDS,
+  TOKENS,
+  type TokenSymbol,
+  tokenForAddress,
+} from "@/lib/web3/contracts";
+import { hashInviteCode } from "@/lib/invite";
+
+export const CircleStatus = ["Open", "Full", "Active", "Completed", "Cancelled"] as const;
+
+/** Circles the connected wallet has created or joined. */
+export function useMyCircles(address?: `0x${string}`) {
+  return useReadContract({
+    address: CIRCLE_FACTORY_ADDRESS,
+    abi: circleFactoryAbi,
+    functionName: "getCirclesForMember",
+    args: address ? [address] : undefined,
+    query: { enabled: IS_FACTORY_CONFIGURED && Boolean(address) },
+  });
+}
+
+export function useTrustedSaver(address?: `0x${string}`) {
+  return useReadContract({
+    address: CIRCLE_FACTORY_ADDRESS,
+    abi: circleFactoryAbi,
+    functionName: "isTrustedSaver",
+    args: address ? [address] : undefined,
+    query: { enabled: IS_FACTORY_CONFIGURED && Boolean(address) },
+  });
+}
+
+/** Full on-chain snapshot of a single circle, batched into one multicall. */
+export function useCircleState(circleAddress?: `0x${string}`) {
+  const contractBase = { address: circleAddress, abi: circleAbi } as const;
+
+  const { data, ...rest } = useReadContracts({
+    contracts: [
+      { ...contractBase, functionName: "name" },
+      { ...contractBase, functionName: "description" },
+      { ...contractBase, functionName: "creator" },
+      { ...contractBase, functionName: "contributionAmount" },
+      { ...contractBase, functionName: "frequencySeconds" },
+      { ...contractBase, functionName: "maxParticipants" },
+      { ...contractBase, functionName: "collateralRequired" },
+      { ...contractBase, functionName: "token" },
+      { ...contractBase, functionName: "status" },
+      { ...contractBase, functionName: "currentRound" },
+      { ...contractBase, functionName: "roundDeadline" },
+      { ...contractBase, functionName: "poolBalance" },
+      { ...contractBase, functionName: "payoutOrderDrawn" },
+      { ...contractBase, functionName: "getMembers" },
+      { ...contractBase, functionName: "getPayoutOrder" },
+      { ...contractBase, functionName: "invitesLocked" },
+    ],
+    query: { enabled: Boolean(circleAddress), refetchInterval: 6000 },
+  });
+
+  const parsed = useMemo(() => {
+    if (!data) return undefined;
+    const [
+      name,
+      description,
+      creator,
+      contributionAmount,
+      frequencySeconds,
+      maxParticipants,
+      collateralRequired,
+      token,
+      status,
+      currentRound,
+      roundDeadline,
+      poolBalance,
+      payoutOrderDrawn,
+      members,
+      payoutOrder,
+      invitesLocked,
+    ] = data;
+
+    const tokenAddress = token.result as `0x${string}` | undefined;
+
+    return {
+      name: name.result as string | undefined,
+      description: description.result as string | undefined,
+      creator: creator.result as `0x${string}` | undefined,
+      contributionAmount: contributionAmount.result as bigint | undefined,
+      frequencySeconds: frequencySeconds.result as bigint | undefined,
+      maxParticipants: maxParticipants.result as number | undefined,
+      collateralRequired: collateralRequired.result as bigint | undefined,
+      token: tokenAddress,
+      tokenConfig: tokenForAddress(tokenAddress),
+      status: CircleStatus[(status.result as number) ?? 0],
+      currentRound: currentRound.result as number | undefined,
+      roundDeadline: roundDeadline.result as bigint | undefined,
+      poolBalance: poolBalance.result as bigint | undefined,
+      payoutOrderDrawn: payoutOrderDrawn.result as boolean | undefined,
+      members: (members.result as `0x${string}`[] | undefined) ?? [],
+      payoutOrder: (payoutOrder.result as `0x${string}`[] | undefined) ?? [],
+      invitesLocked: invitesLocked.result as boolean | undefined,
+    };
+  }, [data]);
+
+  return { data: parsed, ...rest };
+}
+
+export function useMemberInfo(circleAddress?: `0x${string}`, wallet?: `0x${string}`) {
+  return useReadContract({
+    address: circleAddress,
+    abi: circleAbi,
+    functionName: "getMember",
+    args: wallet ? [wallet] : undefined,
+    query: { enabled: Boolean(circleAddress) && Boolean(wallet) },
+  });
+}
+
+export function useCreateCircle() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash });
+
+  function createCircle(params: {
+    name: string;
+    description: string;
+    contributionAmount: string;
+    frequency: Frequency;
+    maxParticipants: number;
+    collateralAmount: string;
+    inviteCode: string;
+    tokenSymbol: TokenSymbol;
+  }) {
+    const token = TOKENS[params.tokenSymbol];
+    writeContract({
+      address: CIRCLE_FACTORY_ADDRESS,
+      abi: circleFactoryAbi,
+      functionName: "createCircle",
+      args: [
+        params.name,
+        params.description,
+        parseUnits(params.contributionAmount || "0", token.decimals),
+        BigInt(FREQUENCY_SECONDS[params.frequency]),
+        params.maxParticipants,
+        parseUnits(params.collateralAmount || "0", token.decimals),
+        hashInviteCode(params.inviteCode),
+        token.address,
+      ],
+    });
+  }
+
+  return { createCircle, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
+}
+
+export function useJoinCircle(circleAddress?: `0x${string}`, isNative = true) {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash });
+
+  /** `collateralAmount` is already in base units (wei for MON, 6-decimals for USDC). */
+  function join(inviteCode: string, collateralAmount: bigint) {
+    if (!circleAddress) return;
+    writeContract({
+      address: circleAddress,
+      abi: circleAbi,
+      functionName: "join",
+      args: [inviteCode],
+      value: isNative ? collateralAmount : 0n,
+    });
+  }
+
+  return { join, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
+}
+
+export function useContribute(circleAddress?: `0x${string}`, isNative = true) {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash });
+
+  /** `amount` is already in base units (wei for MON, 6-decimals for USDC). */
+  function contribute(amount: bigint) {
+    if (!circleAddress) return;
+    writeContract({
+      address: circleAddress,
+      abi: circleAbi,
+      functionName: "contribute",
+      args: [],
+      value: isNative ? amount : 0n,
+    });
+  }
+
+  return { contribute, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
+}
+
+/**
+ * ERC20 approve() + live allowance for a token-denominated circle. No-op /
+ * always-sufficient for native MON circles, since those never need approval.
+ */
+export function useTokenApproval(tokenAddress?: `0x${string}`, spender?: `0x${string}`) {
+  const { address: owner } = useAccount();
+  const isNative = !tokenAddress || tokenAddress === TOKENS.MON.address;
+
+  const allowance = useReadContract({
+    address: tokenAddress,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: owner && spender ? [owner, spender] : undefined,
+    query: { enabled: !isNative && Boolean(owner) && Boolean(spender) && Boolean(tokenAddress), refetchInterval: 5000 },
+  });
+
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash });
+
+  function approve(amount: bigint) {
+    if (!tokenAddress || !spender) return;
+    writeContract({ address: tokenAddress, abi: erc20Abi, functionName: "approve", args: [spender, amount] });
+  }
+
+  function hasSufficientAllowance(amount: bigint) {
+    if (isNative) return true;
+    return typeof allowance.data === "bigint" && allowance.data >= amount;
+  }
+
+  return {
+    approve,
+    hasSufficientAllowance,
+    allowance: allowance.data as bigint | undefined,
+    hash,
+    isPending,
+    isConfirming: receipt.isLoading,
+    isConfirmed: receipt.isSuccess,
+    error,
+  };
+}

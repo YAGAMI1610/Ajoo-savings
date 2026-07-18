@@ -1,0 +1,192 @@
+[
+  {
+    "type": "function",
+    "name": "join",
+    "stateMutability": "payable",
+    "inputs": [{ "name": "inviteCode", "type": "string" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "contribute",
+    "stateMutability": "payable",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "rotateInviteCode",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "newHash", "type": "bytes32" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "closeInvites",
+    "stateMutability": "nonpayable",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "cancel",
+    "stateMutability": "nonpayable",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "markDefault",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "member", "type": "address" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "commitSeed",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "commitment", "type": "bytes32" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "revealSeed",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "secret", "type": "bytes32" }],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "finalizeDraw",
+    "stateMutability": "nonpayable",
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "seedCommitments",
+    "stateMutability": "view",
+    "inputs": [{ "name": "member", "type": "address" }],
+    "outputs": [{ "type": "bytes32" }]
+  },
+  {
+    "type": "function",
+    "name": "seedRevealed",
+    "stateMutability": "view",
+    "inputs": [{ "name": "member", "type": "address" }],
+    "outputs": [{ "type": "bool" }]
+  },
+  { "type": "function", "name": "commitCount", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "revealCount", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "revealDeadline", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "REVEAL_WINDOW", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "name", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "string" }] },
+  { "type": "function", "name": "description", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "string" }] },
+  { "type": "function", "name": "creator", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "address" }] },
+  { "type": "function", "name": "contributionAmount", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "frequencySeconds", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "maxParticipants", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint8" }] },
+  { "type": "function", "name": "collateralRequired", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "token", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "address" }] },
+  { "type": "function", "name": "invitesLocked", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "bool" }] },
+  { "type": "function", "name": "status", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint8" }] },
+  { "type": "function", "name": "currentRound", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint16" }] },
+  { "type": "function", "name": "roundDeadline", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "roundContributionsCount", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "poolBalance", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "payoutOrderDrawn", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "bool" }] },
+  { "type": "function", "name": "memberCount", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "uint256" }] },
+  { "type": "function", "name": "getMembers", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "address[]" }] },
+  { "type": "function", "name": "getPayoutOrder", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "address[]" }] },
+  {
+    "type": "function",
+    "name": "getMember",
+    "stateMutability": "view",
+    "inputs": [{ "name": "wallet", "type": "address" }],
+    "outputs": [
+      {
+        "type": "tuple",
+        "components": [
+          { "name": "wallet", "type": "address" },
+          { "name": "exists", "type": "bool" },
+          { "name": "hasContributedThisRound", "type": "bool" },
+          { "name": "hasReceivedPayout", "type": "bool" },
+          { "name": "completedCircles", "type": "uint32" },
+          { "name": "collateralPosted", "type": "uint256" },
+          { "name": "defaulted", "type": "bool" }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "MemberJoined",
+    "inputs": [
+      { "name": "member", "type": "address", "indexed": true },
+      { "name": "memberCount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "GroupFilled",
+    "inputs": [{ "name": "timestamp", "type": "uint256", "indexed": false }],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SeedCommitted",
+    "inputs": [{ "name": "member", "type": "address", "indexed": true }],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SeedRevealed",
+    "inputs": [{ "name": "member", "type": "address", "indexed": true }],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PayoutOrderDrawn",
+    "inputs": [
+      { "name": "order", "type": "address[]", "indexed": false },
+      { "name": "seed", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ContributionMade",
+    "inputs": [
+      { "name": "member", "type": "address", "indexed": true },
+      { "name": "round", "type": "uint16", "indexed": false },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PayoutSent",
+    "inputs": [
+      { "name": "recipient", "type": "address", "indexed": true },
+      { "name": "round", "type": "uint16", "indexed": false },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CircleCompleted",
+    "inputs": [{ "name": "timestamp", "type": "uint256", "indexed": false }],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MemberDefaulted",
+    "inputs": [
+      { "name": "member", "type": "address", "indexed": true },
+      { "name": "collateralSlashed", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  }
+]
