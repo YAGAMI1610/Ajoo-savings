@@ -40,8 +40,8 @@ contract CircleFactory {
         uint256 frequencySeconds,
         uint8 maxParticipants,
         uint256 collateralRequired,
-        address token,
-        uint256 initialDepositAmount
+        bytes32 inviteCodeHash,
+        address token
     ) external payable returns (address circleAddress) {
         Circle circle = new Circle(
             msg.sender,
@@ -60,16 +60,9 @@ contract CircleFactory {
         circlesByMember[msg.sender].push(circleAddress);
 
         if (token == address(0)) {
-            require(msg.value >= initialDepositAmount, "Factory: insufficient native deposit");
-            if (initialDepositAmount > 0) {
-                (bool ok, ) = payable(circleAddress).call{value: initialDepositAmount}("");
-                require(ok, "Factory: native deposit failed");
-            }
+            require(msg.value == 0, "Factory: no native value for native circles");
         } else {
             require(msg.value == 0, "Factory: no native value for token circles");
-            if (initialDepositAmount > 0) {
-                require(IERC20(token).transferFrom(msg.sender, circleAddress, initialDepositAmount), "Factory: token deposit failed");
-            }
         }
 
         emit CircleCreated(

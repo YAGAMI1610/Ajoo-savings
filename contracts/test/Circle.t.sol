@@ -31,8 +31,8 @@ contract CircleTest is Test {
             7 days,
             5,
             collateral,
-            address(0),
-            0
+            bytes32(0),
+            address(0)
         );
         return Circle(addr);
     }
