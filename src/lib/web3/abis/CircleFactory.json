@@ -11,8 +11,7 @@
       { "name": "maxParticipants", "type": "uint8" },
       { "name": "collateralRequired", "type": "uint256" },
       { "name": "inviteCodeHash", "type": "bytes32" },
-      { "name": "token", "type": "address" },
-      { "name": "initialDepositAmount", "type": "uint256" }
+      { "name": "token", "type": "address" }
     ],
     "outputs": [{ "name": "circleAddress", "type": "address" }]
   },

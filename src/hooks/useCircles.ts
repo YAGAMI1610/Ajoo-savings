@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseUnits } from "viem";
+import { generateInviteCode, hashInviteCode } from "@/lib/invite";
 import {
   CIRCLE_FACTORY_ADDRESS,
   IS_FACTORY_CONFIGURED,
@@ -141,11 +142,11 @@ export function useCreateCircle() {
     frequency: Frequency;
     maxParticipants: number;
     collateralAmount: string;
-    initialDepositAmount: string;
     tokenSymbol: TokenSymbol;
   }) {
     const token = TOKENS[params.tokenSymbol];
-    const initialDeposit = parseUnits(params.initialDepositAmount || "0", token.decimals);
+    const inviteCodeHash = hashInviteCode(generateInviteCode());
+
     writeContract({
       address: CIRCLE_FACTORY_ADDRESS,
       abi: circleFactoryAbi,
@@ -157,10 +158,10 @@ export function useCreateCircle() {
         BigInt(FREQUENCY_SECONDS[params.frequency]),
         params.maxParticipants,
         parseUnits(params.collateralAmount || "0", token.decimals),
+        inviteCodeHash,
         token.address,
-        initialDeposit,
       ],
-      value: token.isNative ? initialDeposit : 0n,
+      value: 0n,
     });
   }
 

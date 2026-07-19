@@ -30,7 +30,6 @@ function CreateCircle() {
   const [frequency, setFrequency] = useState<Frequency>("weekly");
   const [maxParticipants, setMaxParticipants] = useState(5);
   const [collateral, setCollateral] = useState("0");
-  const [initialDeposit, setInitialDeposit] = useState("0");
   const [acknowledged, setAcknowledged] = useState(false);
 
   const selectedToken = TOKENS[tokenSymbol];
@@ -76,7 +75,6 @@ function CreateCircle() {
       frequency,
       maxParticipants,
       collateralAmount: collateral,
-      initialDepositAmount: initialDeposit,
       tokenSymbol,
     });
   }
@@ -149,7 +147,6 @@ function CreateCircle() {
                         setTokenSymbol(sym);
                         setAmount(sym === "USDC" ? "5" : "0.05");
                         setCollateral("0");
-                        setInitialDeposit("0");
                       }}
                       className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition text-left ${
                         tokenSymbol === sym
@@ -214,20 +211,6 @@ function CreateCircle() {
                 />
               </Field>
             </div>
-
-            <Field label={`Initial deposit to fund the circle (${selectedToken.symbol}, optional)`}>
-              <input
-                type="number"
-                min="0"
-                step={selectedToken.isNative ? "0.001" : "0.01"}
-                value={initialDeposit}
-                onChange={(e) => setInitialDeposit(e.target.value)}
-                className="input"
-              />
-              <p className="text-xs text-foreground/50">
-                This amount is charged alongside the gas for creating the circle and becomes the opening balance.
-              </p>
-            </Field>
 
             <label className="flex items-start gap-3 text-sm text-foreground/70">
               <input
