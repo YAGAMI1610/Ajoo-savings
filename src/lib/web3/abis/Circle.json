@@ -129,6 +129,16 @@
   },
   {
     "type": "event",
+    "name": "MemberInvited",
+    "inputs": [
+      { "name": "circle", "type": "address", "indexed": true },
+      { "name": "invited", "type": "address", "indexed": true },
+      { "name": "invitedBy", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "GroupFilled",
     "inputs": [{ "name": "timestamp", "type": "uint256", "indexed": false }],
     "anonymous": false

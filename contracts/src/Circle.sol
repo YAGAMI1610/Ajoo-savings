@@ -70,7 +70,7 @@ contract Circle {
     uint256 public poolBalance;
 
     event MemberJoined(address indexed member, uint256 memberCount);
-    event MemberInvited(address indexed invited);
+    event MemberInvited(address indexed circle, address indexed invited, address indexed invitedBy);
     event GroupFilled(uint256 timestamp);
     event SeedCommitted(address indexed member);
     event SeedRevealed(address indexed member);
@@ -134,7 +134,7 @@ contract Circle {
         require(!invitedAddresses[invited], "Circle: already invited");
         invitedAddresses[invited] = true;
         try ICircleFactory(factory).recordInvitation(invited, address(this)) {} catch {}
-        emit MemberInvited(invited);
+        emit MemberInvited(address(this), invited, msg.sender);
     }
 
     function join() external payable {

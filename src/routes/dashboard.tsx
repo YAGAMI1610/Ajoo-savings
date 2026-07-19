@@ -5,7 +5,7 @@ import { formatUnits } from "viem";
 import { SiteNav } from "@/components/SiteNav";
 import { Disclaimer } from "@/components/Disclaimer";
 import { SavingsWheel } from "@/components/SavingsWheel";
-import { useMyCircles, useCircleState, usePendingPayout } from "@/hooks/useCircles";
+import { useMyCircles, useCircleState, usePendingPayout, usePendingInvitations } from "@/hooks/useCircles";
 import { buildMembers, shortAddress } from "@/lib/circleMembers";
 import { IS_FACTORY_CONFIGURED } from "@/lib/web3/contracts";
 
@@ -36,6 +36,7 @@ function useCountdown(deadline?: bigint) {
 
 function Dashboard() {
   const { address, isConnected } = useAccount();
+  const { data: pendingInvites } = usePendingInvitations();
   const { data: myCircles, isLoading: circlesLoading } = useMyCircles(address);
   const circleAddresses = useMemo(() => ((myCircles as `0x${string}`[] | undefined) ?? []).filter(Boolean), [myCircles]);
   const [selectedCircle, setSelectedCircle] = useState<`0x${string}` | undefined>();
@@ -170,6 +171,20 @@ function Dashboard() {
               </span>
             </div>
           </header>
+
+          {pendingInvites && pendingInvites.length > 0 && (
+            <div className="space-y-3">
+              {pendingInvites.map((invite) => (
+                <div key={invite.address} className="rounded-2xl bg-surface border border-foreground/10 p-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">🔔 Pending invite</p>
+                    <p className="mt-1 text-sm">You've been invited to join <strong>{invite.name || shortAddress(invite.address)}</strong></p>
+                  </div>
+                  <Link to={`/join/${invite.address}`} className="px-3 py-2 rounded-full bg-foreground text-background text-sm font-medium">View & Join</Link>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="rounded-[2rem] bg-foreground text-background p-7 md:p-9 space-y-4">
             <Row

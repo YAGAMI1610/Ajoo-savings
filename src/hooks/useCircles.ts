@@ -338,3 +338,43 @@ export function useTokenApproval(tokenAddress?: `0x${string}`, spender?: `0x${st
     error,
   };
 }
+
+/** Pending invitations for the connected wallet. */
+export function usePendingInvitations() {
+  const { address } = useAccount();
+
+  const invited = useReadContract({
+    address: CIRCLE_FACTORY_ADDRESS,
+    abi: circleFactoryAbi,
+    functionName: "getInvitedCirclesForMember",
+    args: address ? [address] : undefined,
+    query: { enabled: IS_FACTORY_CONFIGURED && Boolean(address) },
+  });
+
+  const circleAddresses = (invited.data as `0x${string}`[] | undefined) ?? [];
+
+  const calls = (circleAddresses || []).flatMap((addr) => [
+    { address: addr, abi: circleAbi, functionName: "name" },
+    { address: addr, abi: circleAbi, functionName: "getMember", args: address ? [address] : undefined },
+  ]);
+
+  const { data, isLoading } = useReadContracts({ contracts: calls, query: { enabled: Boolean(circleAddresses.length > 0 && address) } });
+
+  const parsed = useMemo(() => {
+    if (!data || data.length === 0) return [] as { address: `0x${string}`; name: string }[];
+    const out: { address: `0x${string}`; name: string }[] = [];
+    for (let i = 0; i < circleAddresses.length; i++) {
+      const nameRes = data[2 * i];
+      const memberRes = data[2 * i + 1];
+      const name = (nameRes?.result as string) ?? "";
+      const member = memberRes?.result as any;
+      const exists = member ? Boolean(member.exists) : false;
+      if (!exists) {
+        out.push({ address: circleAddresses[i], name });
+      }
+    }
+    return out;
+  }, [data, circleAddresses]);
+
+  return { data: parsed, isLoading, rawInvited: invited.data };
+}
