@@ -34,7 +34,11 @@ export function readCircleActivity(circleAddress?: string | null): CircleActivit
 
 function writeCircleActivity(circleAddress: string, entries: CircleActivityEntry[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(getStorageKey(circleAddress), JSON.stringify(entries));
+  try {
+    window.localStorage.setItem(getStorageKey(circleAddress), JSON.stringify(entries));
+  } catch {
+    // Ignore storage failures so the app keeps working even in restricted browser contexts.
+  }
 }
 
 export function appendCircleActivity(
