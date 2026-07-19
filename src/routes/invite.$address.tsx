@@ -2,9 +2,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAccount } from "wagmi";
 import { useMemo, useState, useEffect } from "react";
 import { toast } from "sonner";
+import { formatUnits, isAddress } from "viem";
 import { SiteNav } from "@/components/SiteNav";
 import { appendCircleActivity, useCircleActivityFeed } from "@/lib/activityFeed";
 import { useCircleState, useJoinCircle } from "@/hooks/useCircles";
+import { shortAddress } from "@/lib/circleMembers";
 
 export const Route = createFileRoute("/invite/$address")({
   component: InviteDecisionPage,
@@ -12,10 +14,13 @@ export const Route = createFileRoute("/invite/$address")({
 
 function InviteDecisionPage() {
   const navigate = useNavigate();
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const { address: routeAddress } = Route.useParams();
-  const circleAddress = useMemo(() => routeAddress as `0x${string}` | undefined, [routeAddress]);
-  const { data: circle } = useCircleState(circleAddress);
+  const circleAddress = useMemo(() => {
+    if (!isAddress(routeAddress)) return undefined;
+    return routeAddress as `0x${string}`;
+  }, [routeAddress]);
+  const { data: circle, isLoading: circleLoading } = useCircleState(circleAddress);
   const [status, setStatus] = useState<"idle" | "accepted" | "rejected" | "joining" | "joined-success">("idle");
   const { join, isPending: isJoinPending, isConfirming: isJoinConfirming, isConfirmed: isJoinConfirmed, error: joinError } = useJoinCircle(circleAddress);
 
@@ -30,11 +35,18 @@ function InviteDecisionPage() {
   }, [isJoinConfirmed, status, navigate]);
 
   const handleDecision = (decision: "accepted" | "rejected") => {
-    if (!address || !circleAddress) return;
+    if (!isConnected || !address || !circleAddress) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
     
     if (decision === "accepted") {
+      if (!circle?.collateralRequired) {
+        toast.error("Circle information not loaded yet. Please try again.");
+        return;
+      }
       setStatus("joining");
-      join(0n); // Join with 0 collateral (or adjust based on circle config)
+      join(circle.collateralRequired); // Join with required collateral
     } else {
       setStatus("rejected");
       appendCircleActivity(circleAddress, {
@@ -64,18 +76,79 @@ function InviteDecisionPage() {
 
   const activity = useCircleActivityFeed(circleAddress);
 
+  if (!isAddress(routeAddress)) {
+    return (
+      <div className="min-h-screen bg-background">
+        <SiteNav />
+        <div className="max-w-md mx-auto px-5 py-24 text-center space-y-4">
+          <div className="size-14 rounded-full bg-surface mx-auto grid place-items-center text-2xl">✕</div>
+          <h2 className="font-display text-2xl italic">Invalid invite link</h2>
+          <p className="text-foreground/60 text-sm leading-relaxed">
+            The invite link is not valid. Double-check the URL and ask the circle creator to re-share it.
+          </p>
+          <Link to="/dashboard" className="inline-block text-sm font-medium text-accent">
+            Go to dashboard →
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <SiteNav />
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-10">
         <Link to="/dashboard" className="text-sm font-medium text-accent">← Back to dashboard</Link>
-        <div className="rounded-[2rem] bg-foreground p-7 text-background">
-          <p className="text-xs uppercase tracking-[0.2em] text-background/60">Invite decision</p>
-          <h1 className="mt-2 font-display text-3xl italic">{circle?.name || "Circle invite"}</h1>
-          <p className="mt-3 text-sm text-background/70">
-            Review the invitation and choose whether to join this circle or decline it.
-          </p>
-        </div>
+
+        {!isConnected && (
+          <div className="rounded-[2rem] bg-accent/10 border border-accent/30 p-6 text-center">
+            <p className="text-sm font-medium text-accent">Wallet Not Connected</p>
+            <p className="text-sm text-accent/80 mt-2">
+              Connect your wallet to accept this invitation and join the circle.
+            </p>
+          </div>
+        )}
+
+        {circleLoading ? (
+          <div className="rounded-[2rem] bg-foreground p-7 text-background animate-pulse">
+            <p className="text-xs uppercase tracking-[0.2em] text-background/60">Loading invite…</p>
+            <div className="mt-4 h-8 bg-background/20 rounded w-1/2" />
+          </div>
+        ) : (
+          <div className="rounded-[2rem] bg-foreground p-7 text-background">
+            <p className="text-xs uppercase tracking-[0.2em] text-background/60">Invite decision</p>
+            <h1 className="mt-2 font-display text-3xl italic">{circle?.name || "Circle invite"}</h1>
+            {circle?.description && <p className="mt-3 text-sm text-background/70">{circle.description}</p>}
+          </div>
+        )}
+
+        {circle && (
+          <div className="rounded-[2rem] border border-foreground/10 bg-surface p-6 space-y-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">Circle Details</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-foreground/50">Contribution</p>
+                <p className="text-sm font-semibold text-foreground mt-1">
+                  {circle.contributionAmount
+                    ? `${formatUnits(circle.contributionAmount, circle.tokenConfig.decimals)} ${circle.tokenConfig.symbol} / round`
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-foreground/50">Members</p>
+                <p className="text-sm font-semibold text-foreground mt-1">{circle.members.length} of {circle.maxParticipants}</p>
+              </div>
+              <div>
+                <p className="text-xs text-foreground/50">Status</p>
+                <p className="text-sm font-semibold text-foreground mt-1">{circle.status}</p>
+              </div>
+              <div>
+                <p className="text-xs text-foreground/50">Creator</p>
+                <p className="text-sm font-mono text-foreground mt-1">{shortAddress(circle.creator ?? "")}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="rounded-[2rem] border border-foreground/10 bg-surface p-6">
           {status === "idle" && (
@@ -86,14 +159,15 @@ function InviteDecisionPage() {
               <div className="flex flex-wrap gap-3">
                 <button
                   onClick={() => handleDecision("accepted")}
-                  disabled={isJoinPending}
+                  disabled={isJoinPending || !isConnected || !circle}
                   className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90 transition disabled:opacity-50"
                 >
-                  {isJoinPending ? "Processing…" : "Accept invite & join"}
+                  {!isConnected ? "Connect wallet to join" : isJoinPending ? "Processing…" : "Accept invite & join"}
                 </button>
                 <button
                   onClick={() => handleDecision("rejected")}
-                  className="rounded-full border border-foreground/10 bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-foreground/5 transition"
+                  disabled={!isConnected}
+                  className="rounded-full border border-foreground/10 bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-foreground/5 transition disabled:opacity-50"
                 >
                   Decline invite
                 </button>
@@ -130,22 +204,24 @@ function InviteDecisionPage() {
           )}
         </div>
 
-        <div className="rounded-[2rem] border border-foreground/10 bg-surface p-6">
-          <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Circle activity feed</p>
-          <div className="mt-4 space-y-3">
-            {activity.length === 0 ? (
-              <p className="text-sm text-foreground/60">No activity yet. Once you join, deposits and contributions will appear here.</p>
-            ) : (
-              activity.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-foreground/10 bg-background p-3 text-sm">
-                  <p className="font-medium text-foreground">{item.title}</p>
-                  <p className="mt-1 text-foreground/60">{item.message}</p>
-                  <p className="mt-2 text-[11px] uppercase tracking-[0.2em] text-foreground/40">{new Date(item.createdAt).toLocaleString()}</p>
-                </div>
-              ))
-            )}
+        {circle && (
+          <div className="rounded-[2rem] border border-foreground/10 bg-surface p-6">
+            <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Circle activity feed</p>
+            <div className="mt-4 space-y-3">
+              {activity.length === 0 ? (
+                <p className="text-sm text-foreground/60">No activity yet. Once you join, deposits and contributions will appear here.</p>
+              ) : (
+                activity.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-foreground/10 bg-background p-3 text-sm">
+                    <p className="font-medium text-foreground">{item.title}</p>
+                    <p className="mt-1 text-foreground/60">{item.message}</p>
+                    <p className="mt-2 text-[11px] uppercase tracking-[0.2em] text-foreground/40">{new Date(item.createdAt).toLocaleString()}</p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
