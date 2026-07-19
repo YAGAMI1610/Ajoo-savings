@@ -3,40 +3,24 @@ pragma solidity 0.8.24;
 
 interface ICircleFactory {
     function recordMembership(address member) external;
+    function recordInvitation(address invited, address circleAddress) external;
     function recordCompletion(address member) external;
     function recordDefault(address member) external;
 }
 
-/// @dev Minimal ERC20 surface — enough to move a stablecoin like USDC in/out
-///      of a circle. We intentionally avoid pulling in a full OZ dependency.
 interface IERC20 {
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
 
-/// @title Circle
-/// @notice A single private savings circle (Ajo / Esusu / ROSCA) between trusted
-///         family members and friends. Deployed once per group by CircleFactory.
-/// @dev    Payout order is drawn with a commit-reveal scheme: each member locks in
-///         keccak256(secret) while the group is still filling, then reveals the
-///         secret once it's full. The draw seed is the XOR of every revealed
-///         secret, folded together with block data as a defense-in-depth
-///         backstop. No single member, and no block producer, controls the seed
-///         alone — a member can't change their secret after committing, and the
-///         final value isn't fixed until the last reveal (or the reveal window
-///         lapses). See contracts/README.md for the full rationale and the
-///         no-quorum-revealed fallback.
 contract Circle {
-    // ---------------------------------------------------------------------
-    // Types
-    // ---------------------------------------------------------------------
-
     enum Status {
-        Open, // accepting members, invites unlocked
-        Full, // full, waiting for payout order to be drawn
-        Active, // running contribution rounds
-        Completed, // every member has been paid out exactly once
-        Cancelled // creator cancelled before it filled up
+        Open,
+        Full,
+        Active,
+        Completed,
+        Cancelled,
+        Deleted
     }
 
     struct Member {
@@ -44,83 +28,64 @@ contract Circle {
         bool exists;
         bool hasContributedThisRound;
         bool hasReceivedPayout;
-        uint32 completedCircles; // reputation: circles finished elsewhere, set by factory
+        uint32 completedCircles;
         uint256 collateralPosted;
+        uint256 totalPayoutsReceived;
         bool defaulted;
     }
-
-    // ---------------------------------------------------------------------
-    // Immutable / configuration state
-    // ---------------------------------------------------------------------
 
     address public immutable creator;
     address public immutable factory;
 
     string public name;
     string public description;
-    uint256 public immutable contributionAmount; // in token base units, per member per round
-    uint256 public immutable frequencySeconds; // 1 days / 7 days / 30 days
+    uint256 public immutable contributionAmount;
+    uint256 public immutable frequencySeconds;
     uint8 public immutable maxParticipants;
-    uint256 public immutable collateralRequired; // in token base units, 0 = no collateral
-
-    /// @notice The asset this circle is denominated in. address(0) means the
-    ///         chain's native currency (MON on Monad); any other value is an
-    ///         ERC20 token address (e.g. USDC) and every contribution/collateral/
-    ///         payout moves via transferFrom/transfer instead of msg.value.
+    uint256 public immutable collateralRequired;
     address public immutable token;
-
-    /// @dev keccak256 hash of the invite code. The plaintext code is never stored
-    ///      on-chain — only enough to verify a code presented by a joiner.
-    bytes32 public inviteCodeHash;
-    bool public invitesLocked;
-
-    // ---------------------------------------------------------------------
-    // Mutable state
-    // ---------------------------------------------------------------------
 
     Status public status;
     address[] public memberList;
     mapping(address => Member) public members;
+    mapping(address => bool) public invitedAddresses;
+    mapping(address => bool) public deleteVotes;
+    mapping(address => uint256) public pendingPayouts;
 
-    /// @notice Final, immutable payout order — set exactly once when the group fills.
     address[] public payoutOrder;
     bool public payoutOrderDrawn;
 
-    /// @dev Commit-reveal inputs for the payout draw. A member commits
-    ///      keccak256(secret, memberAddress) any time before the group fills, then
-    ///      reveals the secret once it's Full. Only committed members can reveal,
-    ///      and a commitment can never be changed once set.
     mapping(address => bytes32) public seedCommitments;
     mapping(address => bool) public seedRevealed;
     uint256 public commitCount;
     uint256 public revealCount;
     bytes32 private revealAccumulator;
 
-    /// @notice How long members have to reveal after the group fills before
-    ///         anyone can force the draw with whatever was revealed so far.
     uint256 public constant REVEAL_WINDOW = 1 days;
     uint256 public revealDeadline;
 
-    uint16 public currentRound; // 1-indexed once Active
-    uint256 public roundDeadline; // unix timestamp of when the current round's window closes
+    uint16 public currentRound;
+    uint256 public roundDeadline;
     uint256 public roundContributionsCount;
     uint256 public poolBalance;
 
     event MemberJoined(address indexed member, uint256 memberCount);
-    event InviteCodeRotated(bytes32 newHash);
-    event InvitesLocked();
+    event MemberInvited(address indexed invited);
     event GroupFilled(uint256 timestamp);
     event SeedCommitted(address indexed member);
     event SeedRevealed(address indexed member);
     event PayoutOrderDrawn(address[] order, uint256 seed);
     event ContributionMade(address indexed member, uint16 round, uint256 amount);
     event FundsDeposited(address indexed creator, uint256 amount);
-    event PayoutSent(address indexed recipient, uint16 round, uint256 amount);
+    event PayoutQueued(address indexed recipient, uint16 round, uint256 amount);
+    event PayoutWithdrawn(address indexed recipient, uint256 amount);
     event RoundAdvanced(uint16 newRound);
     event CircleCompleted(uint256 timestamp);
     event CircleCancelled(uint256 timestamp);
     event MemberDefaulted(address indexed member, uint256 collateralSlashed);
     event CollateralPosted(address indexed member, uint256 amount);
+    event DeleteVoteCast(address indexed voter);
+    event CircleDeleted(uint256 timestamp);
 
     modifier onlyCreator() {
         require(msg.sender == creator, "Circle: not creator");
@@ -140,7 +105,6 @@ contract Circle {
         uint256 _frequencySeconds,
         uint8 _maxParticipants,
         uint256 _collateralRequired,
-        bytes32 _inviteCodeHash,
         address _token
     ) {
         require(_maxParticipants >= 2 && _maxParticipants <= 50, "Circle: bad size");
@@ -158,23 +122,26 @@ contract Circle {
         frequencySeconds = _frequencySeconds;
         maxParticipants = _maxParticipants;
         collateralRequired = _collateralRequired;
-        inviteCodeHash = _inviteCodeHash;
         token = _token;
         status = Status.Open;
 
         _addMember(_creator);
     }
 
-    // ---------------------------------------------------------------------
-    // Invitations
-    // ---------------------------------------------------------------------
-
-    function join(string calldata inviteCode) external payable {
+    function addInvitedAddress(address invited) external onlyCreator {
         require(status == Status.Open, "Circle: not open");
-        require(!invitesLocked, "Circle: invites locked");
+        require(!members[invited].exists, "Circle: already a member");
+        require(!invitedAddresses[invited], "Circle: already invited");
+        invitedAddresses[invited] = true;
+        try ICircleFactory(factory).recordInvitation(invited, address(this)) {} catch {}
+        emit MemberInvited(invited);
+    }
+
+    function join() external payable {
+        require(status == Status.Open, "Circle: not open");
         require(!members[msg.sender].exists, "Circle: already a member");
         require(memberList.length < maxParticipants, "Circle: full");
-        require(keccak256(abi.encodePacked(inviteCode)) == inviteCodeHash, "Circle: bad invite code");
+        require(invitedAddresses[msg.sender], "Circle: not invited");
 
         if (token == address(0)) {
             require(msg.value == collateralRequired, "Circle: wrong collateral");
@@ -182,9 +149,6 @@ contract Circle {
             require(msg.value == 0, "Circle: no native value for token circles");
         }
 
-        // Effects before interactions: record membership first so a malicious
-        // or nonstandard ERC20 can't reenter join() mid-transferFrom and pass
-        // the "already a member" / "full" checks a second time.
         _addMember(msg.sender);
         if (collateralRequired > 0) {
             members[msg.sender].collateralPosted = collateralRequired;
@@ -195,7 +159,6 @@ contract Circle {
             require(IERC20(token).transferFrom(msg.sender, address(this), collateralRequired), "Circle: collateral transfer failed");
         }
 
-        // best-effort: reputation indexing must never block a join
         try ICircleFactory(factory).recordMembership(msg.sender) {} catch {}
 
         if (memberList.length == maxParticipants) {
@@ -211,27 +174,13 @@ contract Circle {
             hasReceivedPayout: false,
             completedCircles: 0,
             collateralPosted: 0,
+            totalPayoutsReceived: 0,
             defaulted: false
         });
         memberList.push(wallet);
         emit MemberJoined(wallet, memberList.length);
     }
 
-    function rotateInviteCode(bytes32 newHash) external onlyCreator {
-        require(status == Status.Open, "Circle: cannot rotate now");
-        require(!invitesLocked, "Circle: invites locked");
-        inviteCodeHash = newHash;
-        emit InviteCodeRotated(newHash);
-    }
-
-    /// @notice Locks in this member's contribution to the payout-order randomness.
-    ///         `commitment` must be `keccak256(abi.encodePacked(secret, msg.sender))`
-    ///         for a secret only the member knows. Must be called before the group
-    ///         fills; cannot be changed once set. Purely optional — a group that
-    ///         collects zero commitments still draws (falling back to block data
-    ///         alone), but every commitment strictly narrows who could bias the
-    ///         result, since it has to be fixed before anyone knows the final
-    ///         member list or fill order.
     function commitSeed(bytes32 commitment) external onlyMember {
         require(status == Status.Open, "Circle: cannot commit now");
         require(commitment != bytes32(0), "Circle: empty commitment");
@@ -242,10 +191,6 @@ contract Circle {
         emit SeedCommitted(msg.sender);
     }
 
-    /// @notice Reveals the secret behind an earlier commitment. Only callable once
-    ///         the group is Full and only by members who committed. Once every
-    ///         committed member has revealed, the payout order is drawn
-    ///         automatically in the same transaction as the final reveal.
     function revealSeed(bytes32 secret) external onlyMember {
         require(status == Status.Full, "Circle: not awaiting reveal");
         require(!payoutOrderDrawn, "Circle: order already drawn");
@@ -264,20 +209,11 @@ contract Circle {
         }
     }
 
-    /// @notice Forces the draw once the reveal window has lapsed, using whatever
-    ///         secrets were actually revealed. Prevents a member who committed but
-    ///         then refuses to reveal from stalling the circle forever.
     function finalizeDraw() external {
         require(status == Status.Full, "Circle: not awaiting reveal");
         require(!payoutOrderDrawn, "Circle: order already drawn");
         require(block.timestamp > revealDeadline, "Circle: reveal window still open");
         _drawPayoutOrder();
-    }
-
-    function closeInvites() external onlyCreator {
-        require(status == Status.Open, "Circle: not open");
-        invitesLocked = true;
-        emit InvitesLocked();
     }
 
     function cancel() external onlyCreator {
@@ -286,29 +222,103 @@ contract Circle {
         emit CircleCancelled(block.timestamp);
     }
 
-    // ---------------------------------------------------------------------
-    // Fill -> draw payout order -> go active
-    // ---------------------------------------------------------------------
+    function fundCircle(uint256 amount) external payable onlyCreator {
+        require(amount > 0, "Circle: zero deposit");
+        require(status != Status.Deleted, "Circle: deleted");
+
+        if (token == address(0)) {
+            require(msg.value == amount, "Circle: wrong native deposit");
+        } else {
+            require(msg.value == 0, "Circle: no native value for token circles");
+            require(IERC20(token).transferFrom(msg.sender, address(this), amount), "Circle: deposit transfer failed");
+        }
+
+        poolBalance += amount;
+        emit FundsDeposited(msg.sender, amount);
+    }
+
+    function contribute() external payable onlyMember {
+        require(status == Status.Active, "Circle: not active");
+        Member storage m = members[msg.sender];
+        require(!m.hasContributedThisRound, "Circle: already contributed this round");
+
+        if (token == address(0)) {
+            require(msg.value == contributionAmount, "Circle: wrong amount");
+        } else {
+            require(msg.value == 0, "Circle: no native value for token circles");
+        }
+
+        m.hasContributedThisRound = true;
+        roundContributionsCount += 1;
+        poolBalance += contributionAmount;
+
+        emit ContributionMade(msg.sender, currentRound, contributionAmount);
+
+        if (token != address(0)) {
+            require(IERC20(token).transferFrom(msg.sender, address(this), contributionAmount), "Circle: contribution transfer failed");
+        }
+
+        if (roundContributionsCount == memberList.length) {
+            _payoutCurrentRound();
+        }
+    }
+
+    function withdrawPayout() external {
+        uint256 amount = pendingPayouts[msg.sender];
+        require(amount > 0, "Circle: no pending payout");
+
+        pendingPayouts[msg.sender] = 0;
+        members[msg.sender].totalPayoutsReceived += amount;
+        emit PayoutWithdrawn(msg.sender, amount);
+
+        if (token == address(0)) {
+            (bool ok, ) = payable(msg.sender).call{value: amount}("");
+            require(ok, "Circle: payout transfer failed");
+        } else {
+            require(IERC20(token).transfer(msg.sender, amount), "Circle: payout transfer failed");
+        }
+    }
+
+    function voteToDelete() external onlyMember {
+        require(status != Status.Completed && status != Status.Cancelled && status != Status.Deleted, "Circle: cannot delete now");
+        require(!deleteVotes[msg.sender], "Circle: already voted");
+
+        deleteVotes[msg.sender] = true;
+        emit DeleteVoteCast(msg.sender);
+
+        if (_allMembersVoted()) {
+            _settleDeletion();
+        }
+    }
+
+    function deleteCircle() external onlyCreator {
+        require(status == Status.Open, "Circle: cannot delete now");
+        require(memberList.length == 1, "Circle: use voteToDelete for multi-member circles");
+
+        uint256 reclaim = members[creator].collateralPosted + poolBalance;
+        members[creator].collateralPosted = 0;
+        poolBalance = 0;
+        status = Status.Deleted;
+        emit CircleDeleted(block.timestamp);
+
+        if (token == address(0)) {
+            (bool ok, ) = payable(creator).call{value: reclaim}("");
+            require(ok, "Circle: deletion transfer failed");
+        } else {
+            require(IERC20(token).transfer(creator, reclaim), "Circle: deletion transfer failed");
+        }
+    }
 
     function _fillGroup() internal {
         status = Status.Full;
-        invitesLocked = true;
         revealDeadline = block.timestamp + REVEAL_WINDOW;
         emit GroupFilled(block.timestamp);
 
-        // No one committed a seed during Open — nothing to reveal, so draw right
-        // away from block data alone (same fallback behavior as before).
         if (commitCount == 0) {
             _drawPayoutOrder();
         }
     }
 
-    /// @dev Fisher-Yates shuffle seeded from the XOR of every revealed member
-    ///      secret, folded with block data as a defense-in-depth backstop. Runs
-    ///      exactly once (guarded by payoutOrderDrawn) and is then permanent.
-    ///      Even in the worst case — zero commitments, or a forced finalizeDraw()
-    ///      with nothing revealed — this degrades to the same block-data-only
-    ///      randomness the circle always had, never worse.
     function _drawPayoutOrder() internal {
         require(!payoutOrderDrawn, "Circle: order already drawn");
 
@@ -342,73 +352,20 @@ contract Circle {
         emit PayoutOrderDrawn(shuffled, seed);
     }
 
-    // ---------------------------------------------------------------------
-    // Contribution rounds + automatic payout
-    // ---------------------------------------------------------------------
-
-    function fundCircle(uint256 amount) external payable onlyCreator {
-        require(amount > 0, "Circle: zero deposit");
-
-        if (token == address(0)) {
-            require(msg.value == amount, "Circle: wrong native deposit");
-        } else {
-            require(msg.value == 0, "Circle: no native value for token circles");
-            require(IERC20(token).transferFrom(msg.sender, address(this), amount), "Circle: deposit transfer failed");
-        }
-
-        poolBalance += amount;
-        emit FundsDeposited(msg.sender, amount);
-    }
-
-    function contribute() external payable onlyMember {
-        require(status == Status.Active, "Circle: not active");
-        Member storage m = members[msg.sender];
-        require(!m.hasContributedThisRound, "Circle: already contributed this round");
-
-        if (token == address(0)) {
-            require(msg.value == contributionAmount, "Circle: wrong amount");
-        } else {
-            require(msg.value == 0, "Circle: no native value for token circles");
-        }
-
-        // Effects before interactions: mark the round paid before the token
-        // moves, so a malicious/nonstandard ERC20 can't reenter contribute()
-        // mid-transferFrom and get counted twice for the same round.
-        m.hasContributedThisRound = true;
-        roundContributionsCount += 1;
-        poolBalance += contributionAmount;
-
-        emit ContributionMade(msg.sender, currentRound, contributionAmount);
-
-        if (token != address(0)) {
-            require(IERC20(token).transferFrom(msg.sender, address(this), contributionAmount), "Circle: contribution transfer failed");
-        }
-
-        if (roundContributionsCount == memberList.length) {
-            _payoutCurrentRound();
-        }
-    }
-
     function _payoutCurrentRound() internal {
         address recipient = payoutOrder[currentRound - 1];
         uint256 amount = poolBalance;
         poolBalance = 0;
 
         members[recipient].hasReceivedPayout = true;
+        pendingPayouts[recipient] += amount;
 
         for (uint256 i = 0; i < memberList.length; i++) {
             members[memberList[i]].hasContributedThisRound = false;
         }
         roundContributionsCount = 0;
 
-        emit PayoutSent(recipient, currentRound, amount);
-
-        if (token == address(0)) {
-            (bool success, ) = payable(recipient).call{value: amount}("");
-            require(success, "Circle: payout transfer failed");
-        } else {
-            require(IERC20(token).transfer(recipient, amount), "Circle: payout transfer failed");
-        }
+        emit PayoutQueued(recipient, currentRound, amount);
 
         if (currentRound == maxParticipants) {
             status = Status.Completed;
@@ -425,14 +382,40 @@ contract Circle {
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Defaults / collateral slashing
-    // ---------------------------------------------------------------------
+    function _allMembersVoted() internal view returns (bool) {
+        for (uint256 i = 0; i < memberList.length; i++) {
+            if (!deleteVotes[memberList[i]]) return false;
+        }
+        return true;
+    }
 
-    /// @notice Anyone can call after a round's deadline passes if a member who has
-    ///         already received their payout still hasn't contributed. Their
-    ///         collateral is slashed and redistributed to members still owed a
-    ///         payout, pro-rata. This keeps the circle solvent for everyone left.
+    function _settleDeletion() internal {
+        uint256 pool = poolBalance;
+        uint256 len = memberList.length;
+        uint256 share = pool / len;
+        uint256 remainder = pool % len;
+
+        for (uint256 i = 0; i < len; i++) {
+            address member = memberList[i];
+            uint256 memberShare = share + (i < remainder ? 1 : 0);
+            uint256 reclaim = members[member].collateralPosted + memberShare + pendingPayouts[member] - members[member].totalPayoutsReceived;
+            if (reclaim > 0) {
+                if (token == address(0)) {
+                    (bool ok, ) = payable(member).call{value: reclaim}("");
+                    require(ok, "Circle: settlement transfer failed");
+                } else {
+                    require(IERC20(token).transfer(member, reclaim), "Circle: settlement transfer failed");
+                }
+            }
+            members[member].collateralPosted = 0;
+            pendingPayouts[member] = 0;
+        }
+
+        poolBalance = 0;
+        status = Status.Deleted;
+        emit CircleDeleted(block.timestamp);
+    }
+
     function markDefault(address member) external {
         require(status == Status.Active, "Circle: not active");
         require(block.timestamp > roundDeadline, "Circle: round still open");
@@ -470,10 +453,6 @@ contract Circle {
             }
         }
     }
-
-    // ---------------------------------------------------------------------
-    // Views
-    // ---------------------------------------------------------------------
 
     function memberCount() external view returns (uint256) {
         return memberList.length;

@@ -1,11 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAccount } from "wagmi";
 import { useState } from "react";
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits, isAddress, parseUnits } from "viem";
 import { SiteNav } from "@/components/SiteNav";
-import { useMyCircles, useCircleState, useContribute, useFundCircle, useMemberInfo, useTokenApproval } from "@/hooks/useCircles";
+import { useMyCircles, useCircleState, useContribute, useFundCircle, useMemberInfo, useTokenApproval, usePendingPayout, useAddInvitedAddress, useWithdrawPayout, useVoteToDelete, useDeleteCircle } from "@/hooks/useCircles";
 import { buildMembers, shortAddress } from "@/lib/circleMembers";
-import { inviteLink } from "@/lib/invite";
 import { IS_FACTORY_CONFIGURED } from "@/lib/web3/contracts";
 
 export const Route = createFileRoute("/group")({
@@ -24,10 +23,16 @@ function GroupDetails() {
   const activeCircle = (myCircles as `0x${string}`[] | undefined)?.[0];
   const { data: circle } = useCircleState(activeCircle);
   const { data: myMember } = useMemberInfo(activeCircle, address);
+  const { data: myPendingPayout } = usePendingPayout(activeCircle, address);
   const isNative = circle?.tokenConfig?.isNative ?? true;
   const { contribute, isPending, isConfirming, isConfirmed, error } = useContribute(activeCircle, isNative);
   const { fund, isPending: isFundPending, isConfirming: isFundConfirming, isConfirmed: isFundConfirmed, error: fundError } = useFundCircle(activeCircle, isNative);
+  const { addInvitedAddress, isPending: isInvitePending, isConfirming: isInviteConfirming } = useAddInvitedAddress(activeCircle);
+  const { withdrawPayout, isPending: isWithdrawPending, isConfirming: isWithdrawConfirming, isConfirmed: isWithdrawConfirmed } = useWithdrawPayout(activeCircle);
+  const { voteToDelete, isPending: isVotePending, isConfirming: isVoteConfirming } = useVoteToDelete(activeCircle);
+  const { deleteCircle, isPending: isDeletePending, isConfirming: isDeleteConfirming } = useDeleteCircle(activeCircle);
   const [fundAmount, setFundAmount] = useState("");
+  const [inviteAddress, setInviteAddress] = useState("");
   const {
     approve,
     hasSufficientAllowance,
@@ -100,7 +105,7 @@ function GroupDetails() {
         </div>
 
         {circle.status === "Open" && circle.creator?.toLowerCase() === address?.toLowerCase() && (
-          <InviteCard circleAddress={activeCircle} invitesLocked={circle.invitesLocked} />
+          <InviteCard onAddMember={addInvitedAddress} inviteAddress={inviteAddress} setInviteAddress={setInviteAddress} isInvitePending={isInvitePending || isInviteConfirming} />
         )}
 
         {circle.creator?.toLowerCase() === address?.toLowerCase() && (
@@ -164,6 +169,46 @@ function GroupDetails() {
           </div>
         )}
 
+        {myPendingPayout && myPendingPayout > 0n && (
+          <div className="rounded-2xl bg-moss/10 border border-moss/30 p-6 space-y-3">
+            <h3 className="text-sm font-semibold">Your payout is ready — Withdraw {formatUnits(myPendingPayout, circle.tokenConfig.decimals)} {circle.tokenConfig.symbol}</h3>
+            <button
+              onClick={() => withdrawPayout()}
+              disabled={isWithdrawPending || isWithdrawConfirming}
+              className="px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition disabled:opacity-50"
+            >
+              {isWithdrawPending || isWithdrawConfirming ? "Withdrawing…" : "Withdraw Now"}
+            </button>
+            {isWithdrawConfirmed && <p className="text-xs text-moss">Payout withdrawn.</p>}
+          </div>
+        )}
+
+        {circle.status !== "Deleted" && (
+          <div className="rounded-2xl bg-surface border border-foreground/10 p-6 space-y-3">
+            <h3 className="text-sm font-semibold">Delete circle</h3>
+            {circle.members.length === 1 ? (
+              <button
+                onClick={() => deleteCircle()}
+                disabled={isDeletePending || isDeleteConfirming}
+                className="px-5 py-2.5 rounded-full bg-clay text-background text-sm font-medium hover:bg-clay/90 transition disabled:opacity-50"
+              >
+                {isDeletePending || isDeleteConfirming ? "Deleting…" : "Delete and reclaim funds"}
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  onClick={() => voteToDelete()}
+                  disabled={isVotePending || isVoteConfirming}
+                  className="px-5 py-2.5 rounded-full bg-clay text-background text-sm font-medium hover:bg-clay/90 transition disabled:opacity-50"
+                >
+                  {isVotePending || isVoteConfirming ? "Casting vote…" : "Vote to delete"}
+                </button>
+                <p className="text-xs text-foreground/60">All members must vote. Once every member agrees, funds are settled and the circle closes.</p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="space-y-3">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/50">Members</h3>
           <div className="grid sm:grid-cols-2 gap-3">
@@ -196,43 +241,40 @@ function GroupDetails() {
   );
 }
 
-function InviteCard({ circleAddress, invitesLocked }: { circleAddress: `0x${string}`; invitesLocked?: boolean }) {
-  const [copied, setCopied] = useState(false);
-  // The plaintext invite code is generated once at creation time and only the
-  // creator holds it (stored locally); this card assumes it's already been
-  // shared. In the create flow we surface + persist it right after deploy.
-  const stored = typeof window !== "undefined"
-    ? window.localStorage.getItem(`invite:${circleAddress}`) ?? window.localStorage.getItem(`invite:${window.ethereum?.selectedAddress ?? ""}`)
-    : null;
-
-  if (!stored) {
-    return (
-      <div className="rounded-2xl bg-surface border border-foreground/10 p-5 text-sm text-foreground/60">
-        Invite code isn't available in this browser. It was shown once at creation — if you cleared local
-        storage, invite whoever is missing by re-sharing the code you saved.
-      </div>
-    );
-  }
-
-  const link = inviteLink(stored);
-
+function InviteCard({
+  onAddMember,
+  inviteAddress,
+  setInviteAddress,
+  isInvitePending,
+}: {
+  onAddMember: (wallet: `0x${string}`) => void;
+  inviteAddress: string;
+  setInviteAddress: (value: string) => void;
+  isInvitePending: boolean;
+}) {
   return (
     <div className="rounded-2xl bg-surface border border-foreground/10 p-5 space-y-3">
       <h3 className="text-sm font-semibold">Invite people you trust</h3>
       <div className="flex items-center gap-2">
-        <code className="flex-1 px-3 py-2 rounded-lg bg-background text-sm font-mono truncate">{link}</code>
+        <input
+          value={inviteAddress}
+          onChange={(e) => setInviteAddress(e.target.value)}
+          className="input flex-1"
+          placeholder="0x... invited wallet"
+        />
         <button
           onClick={() => {
-            navigator.clipboard.writeText(link);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
+            if (!isAddress(inviteAddress)) return;
+            onAddMember(inviteAddress as `0x${string}`);
+            setInviteAddress("");
           }}
-          className="px-3 py-2 rounded-lg bg-foreground text-background text-xs font-medium shrink-0"
+          disabled={isInvitePending || !isAddress(inviteAddress)}
+          className="px-3 py-2 rounded-lg bg-foreground text-background text-xs font-medium shrink-0 disabled:opacity-50"
         >
-          {copied ? "Copied!" : "Copy link"}
+          {isInvitePending ? "Adding…" : "Add Member"}
         </button>
       </div>
-      {invitesLocked && <p className="text-xs text-clay">Invitations are closed on this circle.</p>}
+      <p className="text-xs text-foreground/60">The invited wallet will see a pending invitation on their Ajoo dashboard and can accept it when connected.</p>
     </div>
   );
 }

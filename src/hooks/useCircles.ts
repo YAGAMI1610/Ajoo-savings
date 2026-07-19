@@ -13,7 +13,6 @@ import {
   type TokenSymbol,
   tokenForAddress,
 } from "@/lib/web3/contracts";
-import { hashInviteCode } from "@/lib/invite";
 
 export const CircleStatus = ["Open", "Full", "Active", "Completed", "Cancelled"] as const;
 
@@ -121,6 +120,16 @@ export function useMemberInfo(circleAddress?: `0x${string}`, wallet?: `0x${strin
   });
 }
 
+export function usePendingPayout(circleAddress?: `0x${string}`, wallet?: `0x${string}`) {
+  return useReadContract({
+    address: circleAddress,
+    abi: circleAbi,
+    functionName: "pendingPayouts",
+    args: wallet ? [wallet] : undefined,
+    query: { enabled: Boolean(circleAddress) && Boolean(wallet) },
+  });
+}
+
 export function useCreateCircle() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
@@ -133,7 +142,6 @@ export function useCreateCircle() {
     maxParticipants: number;
     collateralAmount: string;
     initialDepositAmount: string;
-    inviteCode: string;
     tokenSymbol: TokenSymbol;
   }) {
     const token = TOKENS[params.tokenSymbol];
@@ -149,7 +157,6 @@ export function useCreateCircle() {
         BigInt(FREQUENCY_SECONDS[params.frequency]),
         params.maxParticipants,
         parseUnits(params.collateralAmount || "0", token.decimals),
-        hashInviteCode(params.inviteCode),
         token.address,
         initialDeposit,
       ],
@@ -172,19 +179,86 @@ export function useJoinCircle(circleAddress?: `0x${string}`, isNative = true) {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
 
-  /** `collateralAmount` is already in base units (wei for MON, 6-decimals for USDC). */
-  function join(inviteCode: string, collateralAmount: bigint) {
+  function join(collateralAmount: bigint) {
     if (!circleAddress) return;
     writeContract({
       address: circleAddress,
       abi: circleAbi,
       functionName: "join",
-      args: [inviteCode],
+      args: [],
       value: isNative ? collateralAmount : 0n,
     });
   }
 
   return { join, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
+}
+
+export function useAddInvitedAddress(circleAddress?: `0x${string}`) {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash });
+
+  function addInvitedAddress(invited: `0x${string}`) {
+    if (!circleAddress) return;
+    writeContract({
+      address: circleAddress,
+      abi: circleAbi,
+      functionName: "addInvitedAddress",
+      args: [invited],
+    });
+  }
+
+  return { addInvitedAddress, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
+}
+
+export function useWithdrawPayout(circleAddress?: `0x${string}`) {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash });
+
+  function withdrawPayout() {
+    if (!circleAddress) return;
+    writeContract({
+      address: circleAddress,
+      abi: circleAbi,
+      functionName: "withdrawPayout",
+      args: [],
+    });
+  }
+
+  return { withdrawPayout, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
+}
+
+export function useVoteToDelete(circleAddress?: `0x${string}`) {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash });
+
+  function voteToDelete() {
+    if (!circleAddress) return;
+    writeContract({
+      address: circleAddress,
+      abi: circleAbi,
+      functionName: "voteToDelete",
+      args: [],
+    });
+  }
+
+  return { voteToDelete, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
+}
+
+export function useDeleteCircle(circleAddress?: `0x${string}`) {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const receipt = useWaitForTransactionReceipt({ hash });
+
+  function deleteCircle() {
+    if (!circleAddress) return;
+    writeContract({
+      address: circleAddress,
+      abi: circleAbi,
+      functionName: "deleteCircle",
+      args: [],
+    });
+  }
+
+  return { deleteCircle, hash, isPending, isConfirming: receipt.isLoading, isConfirmed: receipt.isSuccess, error };
 }
 
 export function useFundCircle(circleAddress?: `0x${string}`, isNative = true) {

@@ -5,7 +5,7 @@ import { formatUnits } from "viem";
 import { SiteNav } from "@/components/SiteNav";
 import { Disclaimer } from "@/components/Disclaimer";
 import { SavingsWheel } from "@/components/SavingsWheel";
-import { useMyCircles, useCircleState } from "@/hooks/useCircles";
+import { useMyCircles, useCircleState, usePendingPayout } from "@/hooks/useCircles";
 import { buildMembers, shortAddress } from "@/lib/circleMembers";
 import { IS_FACTORY_CONFIGURED } from "@/lib/web3/contracts";
 
@@ -38,10 +38,10 @@ function Dashboard() {
   const { address, isConnected } = useAccount();
   const { data: myCircles, isLoading: circlesLoading } = useMyCircles(address);
   const circleAddresses = useMemo(() => ((myCircles as `0x${string}`[] | undefined) ?? []).filter(Boolean), [myCircles]);
-  const [pendingInvites, setPendingInvites] = useState<string[]>([]);
   const [selectedCircle, setSelectedCircle] = useState<`0x${string}` | undefined>();
   const activeCircle = selectedCircle ?? circleAddresses[0];
   const { data: circle, isLoading: circleLoading } = useCircleState(activeCircle);
+  const { data: pendingPayout } = usePendingPayout(activeCircle, address);
   const countdown = useCountdown(circle?.roundDeadline);
   const otherCircles = circleAddresses.filter((x) => x !== activeCircle);
 
@@ -51,19 +51,6 @@ function Dashboard() {
     }
   }, [circleAddresses, selectedCircle]);
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !address) return;
-    const stored = window.localStorage.getItem(`pending-invites:${address}`);
-    if (stored) {
-      try {
-        setPendingInvites(JSON.parse(stored));
-      } catch {
-        setPendingInvites([]);
-      }
-    } else {
-      setPendingInvites([]);
-    }
-  }, [address]);
 
   if (!IS_FACTORY_CONFIGURED) {
     return (
@@ -104,7 +91,7 @@ function Dashboard() {
       <Shell>
         <EmptyState
           title="No circles yet"
-          body="Start a savings circle with your family or closest friends, or join one with an invite link someone shared with you."
+          body="Start a savings circle with your family or closest friends, or accept an invitation from a creator who added your wallet address."
           cta={
             <Link
               to="/create"
@@ -202,7 +189,7 @@ function Dashboard() {
           {circle.status === "Open" && (
             <NoticeCard
               title="Waiting for members"
-              body={`${circle.members.length} of ${circle.maxParticipants} joined. Invites are open — share the link from the Group page. The payout order draws automatically the moment the last seat fills.`}
+              body={`${circle.members.length} of ${circle.maxParticipants} joined. The creator can add invited wallet addresses from the group page. The payout order draws automatically when the circle fills.`}
             />
           )}
 
@@ -230,14 +217,12 @@ function Dashboard() {
             )}
           </div>
 
-          {pendingInvites.length > 0 && (
+          {pendingPayout && pendingPayout > 0n && (
             <div className="rounded-[2rem] bg-surface p-6 md:p-8 space-y-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">Pending invitations</p>
-              {pendingInvites.map((inviteAddress) => (
-                <Link key={inviteAddress} to={`/join/${encodeURIComponent(inviteAddress)}`} className="block rounded-2xl border border-foreground/10 bg-background px-3 py-3 text-sm">
-                  Accept invitation for {shortAddress(inviteAddress)}
-                </Link>
-              ))}
+              <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">Your payout is ready</p>
+              <div className="rounded-2xl border border-foreground/10 bg-background px-3 py-3 text-sm">
+                Withdraw {formatUnits(pendingPayout, circle.tokenConfig.decimals)} {circle.tokenConfig.symbol}
+              </div>
             </div>
           )}
 

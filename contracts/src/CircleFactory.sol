@@ -8,11 +8,8 @@ interface IERC20 {
 }
 
 /// @title CircleFactory
-/// @notice Creates private savings circles and gives every wallet a persistent
-///         reputation record (circles completed, defaults) across all circles it
-///         has been part of. Groups are NEVER enumerable/browsable here on purpose
-///         — Ajoo is invite-only. The factory only stores what is needed to
-///         validate an invite code cheaply; codes are never stored in plaintext.
+/// @notice Creates private savings circles and keeps a member-to-circle index
+///         for the Ajoo dashboard without exposing a public browse surface.
 contract CircleFactory {
     struct Reputation {
         uint32 circlesCompleted;
@@ -22,6 +19,7 @@ contract CircleFactory {
     address[] public allCircles;
     mapping(address => bool) public isCircle;
     mapping(address => address[]) public circlesByMember;
+    mapping(address => address[]) public invitedCirclesByMember;
     mapping(address => Reputation) public reputationOf;
 
     event CircleCreated(
@@ -35,11 +33,6 @@ contract CircleFactory {
         address token
     );
 
-    /// @param inviteCodeHash keccak256(abi.encodePacked(plaintextInviteCode)),
-    ///        computed client-side so the plaintext code never touches chain.
-    /// @param token address(0) for the chain's native currency (MON), or an
-    ///        ERC20 token address (e.g. USDC) to denominate this circle in
-    ///        that token instead.
     function createCircle(
         string calldata circleName,
         string calldata description,
@@ -47,7 +40,6 @@ contract CircleFactory {
         uint256 frequencySeconds,
         uint8 maxParticipants,
         uint256 collateralRequired,
-        bytes32 inviteCodeHash,
         address token,
         uint256 initialDepositAmount
     ) external payable returns (address circleAddress) {
@@ -59,7 +51,6 @@ contract CircleFactory {
             frequencySeconds,
             maxParticipants,
             collateralRequired,
-            inviteCodeHash,
             token
         );
 
@@ -93,12 +84,14 @@ contract CircleFactory {
         );
     }
 
-    /// @notice Called by a Circle-aware indexer/frontend after a wallet joins a
-    ///         circle, so the factory can resolve "my circles" without a public
-    ///         registry of all circles being browsable by everyone.
     function recordMembership(address member) external {
         require(isCircle[msg.sender], "Factory: caller is not a known circle");
         circlesByMember[member].push(msg.sender);
+    }
+
+    function recordInvitation(address invited, address circleAddress) external {
+        require(isCircle[msg.sender], "Factory: caller is not a known circle");
+        invitedCirclesByMember[invited].push(circleAddress);
     }
 
     function recordCompletion(address member) external {
@@ -115,11 +108,14 @@ contract CircleFactory {
         return circlesByMember[member];
     }
 
+    function getInvitedCirclesForMember(address member) external view returns (address[] memory) {
+        return invitedCirclesByMember[member];
+    }
+
     function totalCirclesCreated() external view returns (uint256) {
         return allCircles.length;
     }
 
-    /// @notice "Trusted Saver" badge threshold: 3+ completed circles, 0 defaults.
     function isTrustedSaver(address member) external view returns (bool) {
         Reputation memory r = reputationOf[member];
         return r.circlesCompleted >= 3 && r.circlesDefaulted == 0;

@@ -13,12 +13,8 @@ contract CircleTest is Test {
     address dave = address(0xDA4E);
     address eve = address(0xEEEE);
 
-    string constant CODE = "CIRCLE-X7K9P2";
-    bytes32 inviteHash;
-
     function setUp() public {
         factory = new CircleFactory();
-        inviteHash = keccak256(abi.encodePacked(CODE));
         vm.deal(creator, 100 ether);
         vm.deal(bob, 100 ether);
         vm.deal(carol, 100 ether);
@@ -35,7 +31,6 @@ contract CircleTest is Test {
             7 days,
             5,
             collateral,
-            inviteHash,
             address(0),
             0
         );
@@ -49,32 +44,44 @@ contract CircleTest is Test {
         assertEq(uint256(c.status()), uint256(Circle.Status.Open));
     }
 
-    function test_JoinRejectsWrongInviteCode() public {
+    function test_JoinRejectsNonInvitedAddress() public {
         Circle c = _create(0);
         vm.prank(bob);
-        vm.expectRevert("Circle: bad invite code");
-        c.join("WRONG-CODE");
+        vm.expectRevert("Circle: not invited");
+        c.join();
     }
 
     function test_JoinRejectsDuplicate() public {
         Circle c = _create(0);
+        vm.prank(creator);
+        c.addInvitedAddress(bob);
+
         vm.prank(bob);
-        c.join(CODE);
+        c.join();
         vm.prank(bob);
         vm.expectRevert("Circle: already a member");
-        c.join(CODE);
+        c.join();
     }
 
     function test_GroupFillsAndDrawsImmutablePayoutOrder() public {
         Circle c = _create(0);
+        vm.prank(creator);
+        c.addInvitedAddress(bob);
+        vm.prank(creator);
+        c.addInvitedAddress(carol);
+        vm.prank(creator);
+        c.addInvitedAddress(dave);
+        vm.prank(creator);
+        c.addInvitedAddress(eve);
+
         vm.prank(bob);
-        c.join(CODE);
+        c.join();
         vm.prank(carol);
-        c.join(CODE);
+        c.join();
         vm.prank(dave);
-        c.join(CODE);
+        c.join();
         vm.prank(eve);
-        c.join(CODE);
+        c.join();
 
         assertEq(uint256(c.status()), uint256(Circle.Status.Active));
         assertTrue(c.payoutOrderDrawn());
@@ -94,32 +101,50 @@ contract CircleTest is Test {
 
     function test_JoinAfterFullReverts() public {
         Circle c = _create(0);
+        vm.prank(creator);
+        c.addInvitedAddress(bob);
+        vm.prank(creator);
+        c.addInvitedAddress(carol);
+        vm.prank(creator);
+        c.addInvitedAddress(dave);
+        vm.prank(creator);
+        c.addInvitedAddress(eve);
+
         vm.prank(bob);
-        c.join(CODE);
+        c.join();
         vm.prank(carol);
-        c.join(CODE);
+        c.join();
         vm.prank(dave);
-        c.join(CODE);
+        c.join();
         vm.prank(eve);
-        c.join(CODE);
+        c.join();
 
         address frank = address(0xF4A4);
         vm.deal(frank, 1 ether);
         vm.prank(frank);
         vm.expectRevert("Circle: not open");
-        c.join(CODE);
+        c.join();
     }
 
-    function test_FullContributionCycleTransfersCorrectPool() public {
+    function test_FullContributionCycleQueuesPayoutForCurrentRound() public {
         Circle c = _create(0);
+        vm.prank(creator);
+        c.addInvitedAddress(bob);
+        vm.prank(creator);
+        c.addInvitedAddress(carol);
+        vm.prank(creator);
+        c.addInvitedAddress(dave);
+        vm.prank(creator);
+        c.addInvitedAddress(eve);
+
         vm.prank(bob);
-        c.join(CODE);
+        c.join();
         vm.prank(carol);
-        c.join(CODE);
+        c.join();
         vm.prank(dave);
-        c.join(CODE);
+        c.join();
         vm.prank(eve);
-        c.join(CODE);
+        c.join();
 
         address[] memory order = c.getPayoutOrder();
         address firstRecipient = order[0];
@@ -131,29 +156,49 @@ contract CircleTest is Test {
             c.contribute{value: 1 ether}();
         }
 
-        // firstRecipient is one of the 5 contributors too, so their net gain
-        // is the 5-ether pool minus the 1 ether they themselves paid in.
-        assertEq(firstRecipient.balance, balBefore + 5 ether - 1 ether);
+        assertEq(c.pendingPayouts(firstRecipient), 5 ether);
+        assertEq(firstRecipient.balance, balBefore - 1 ether);
         assertEq(c.currentRound(), 2);
         assertEq(c.poolBalance(), 0);
+
+        vm.prank(firstRecipient);
+        c.withdrawPayout();
+        assertEq(firstRecipient.balance, balBefore + 4 ether);
     }
 
     function test_CircleCompletesAfterEveryoneIsPaidOnce() public {
         Circle c = _create(0);
+        vm.prank(creator);
+        c.addInvitedAddress(bob);
+        vm.prank(creator);
+        c.addInvitedAddress(carol);
+        vm.prank(creator);
+        c.addInvitedAddress(dave);
+        vm.prank(creator);
+        c.addInvitedAddress(eve);
+
         vm.prank(bob);
-        c.join(CODE);
+        c.join();
         vm.prank(carol);
-        c.join(CODE);
+        c.join();
         vm.prank(dave);
-        c.join(CODE);
+        c.join();
         vm.prank(eve);
-        c.join(CODE);
+        c.join();
 
         address[] memory members = c.getMembers();
         for (uint16 round = 1; round <= 5; round++) {
             for (uint256 i = 0; i < members.length; i++) {
                 vm.prank(members[i]);
                 c.contribute{value: 1 ether}();
+            }
+
+            for (uint256 i = 0; i < members.length; i++) {
+                uint256 owed = c.pendingPayouts(members[i]);
+                if (owed > 0) {
+                    vm.prank(members[i]);
+                    c.withdrawPayout();
+                }
             }
         }
 
@@ -173,14 +218,23 @@ contract CircleTest is Test {
 
     function test_CollateralSlashRedistributesToRemainingMembers() public {
         Circle c = _create(1 ether);
+        vm.prank(creator);
+        c.addInvitedAddress(bob);
+        vm.prank(creator);
+        c.addInvitedAddress(carol);
+        vm.prank(creator);
+        c.addInvitedAddress(dave);
+        vm.prank(creator);
+        c.addInvitedAddress(eve);
+
         vm.prank(bob);
-        c.join{value: 1 ether}(CODE);
+        c.join{value: 1 ether}();
         vm.prank(carol);
-        c.join{value: 1 ether}(CODE);
+        c.join{value: 1 ether}();
         vm.prank(dave);
-        c.join{value: 1 ether}(CODE);
+        c.join{value: 1 ether}();
         vm.prank(eve);
-        c.join{value: 1 ether}(CODE);
+        c.join{value: 1 ether}();
 
         address[] memory order = c.getPayoutOrder();
         address firstRecipient = order[0];
@@ -204,23 +258,31 @@ contract CircleTest is Test {
 
     function test_CommitRevealDrawsOncePastLastReveal() public {
         Circle c = _create(0);
+        vm.prank(creator);
+        c.addInvitedAddress(bob);
+        vm.prank(creator);
+        c.addInvitedAddress(carol);
+        vm.prank(creator);
+        c.addInvitedAddress(dave);
+        vm.prank(creator);
+        c.addInvitedAddress(eve);
 
         bytes32 creatorSecret = keccak256("creator-secret");
         vm.prank(creator);
         c.commitSeed(keccak256(abi.encodePacked(creatorSecret, creator)));
 
         vm.prank(bob);
-        c.join(CODE);
+        c.join();
         bytes32 bobSecret = keccak256("bob-secret");
         vm.prank(bob);
         c.commitSeed(keccak256(abi.encodePacked(bobSecret, bob)));
 
         vm.prank(carol);
-        c.join(CODE);
+        c.join();
         vm.prank(dave);
-        c.join(CODE);
+        c.join();
         vm.prank(eve);
-        c.join(CODE);
+        c.join();
 
         // Group is Full, but the draw hasn't happened yet — two commitments are
         // still unrevealed.
@@ -242,18 +304,27 @@ contract CircleTest is Test {
 
     function test_RevealRejectsWrongSecret() public {
         Circle c = _create(0);
+        vm.prank(creator);
+        c.addInvitedAddress(bob);
+        vm.prank(creator);
+        c.addInvitedAddress(carol);
+        vm.prank(creator);
+        c.addInvitedAddress(dave);
+        vm.prank(creator);
+        c.addInvitedAddress(eve);
+
         bytes32 secret = keccak256("creator-secret");
         vm.prank(creator);
         c.commitSeed(keccak256(abi.encodePacked(secret, creator)));
 
         vm.prank(bob);
-        c.join(CODE);
+        c.join();
         vm.prank(carol);
-        c.join(CODE);
+        c.join();
         vm.prank(dave);
-        c.join(CODE);
+        c.join();
         vm.prank(eve);
-        c.join(CODE);
+        c.join();
 
         vm.prank(creator);
         vm.expectRevert("Circle: bad reveal");
@@ -262,18 +333,27 @@ contract CircleTest is Test {
 
     function test_FinalizeDrawRescuesStalledReveal() public {
         Circle c = _create(0);
+        vm.prank(creator);
+        c.addInvitedAddress(bob);
+        vm.prank(creator);
+        c.addInvitedAddress(carol);
+        vm.prank(creator);
+        c.addInvitedAddress(dave);
+        vm.prank(creator);
+        c.addInvitedAddress(eve);
+
         bytes32 secret = keccak256("creator-secret");
         vm.prank(creator);
         c.commitSeed(keccak256(abi.encodePacked(secret, creator)));
 
         vm.prank(bob);
-        c.join(CODE);
+        c.join();
         vm.prank(carol);
-        c.join(CODE);
+        c.join();
         vm.prank(dave);
-        c.join(CODE);
+        c.join();
         vm.prank(eve);
-        c.join(CODE);
+        c.join();
 
         // Creator never reveals. Anyone can force the draw once the window lapses.
         vm.expectRevert("Circle: reveal window still open");

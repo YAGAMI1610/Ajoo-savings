@@ -5,8 +5,6 @@ import { useAccount } from "wagmi";
 import { SiteNav } from "@/components/SiteNav";
 import { Disclaimer } from "@/components/Disclaimer";
 import { useCreateCircle } from "@/hooks/useCircles";
-import { generateInviteCode, hashInviteCode, inviteLink } from "@/lib/invite";
-import { registerInvite } from "@/lib/inviteRegistry";
 import { circleFactoryAbi, IS_FACTORY_CONFIGURED, TOKENS, type Frequency, type TokenSymbol } from "@/lib/web3/contracts";
 import { monadTestnet } from "@/lib/web3/chain";
 
@@ -34,8 +32,6 @@ function CreateCircle() {
   const [collateral, setCollateral] = useState("0");
   const [initialDeposit, setInitialDeposit] = useState("0");
   const [acknowledged, setAcknowledged] = useState(false);
-  const [inviteCode] = useState(() => generateInviteCode());
-  const [savedLocally, setSavedLocally] = useState(false);
 
   const selectedToken = TOKENS[tokenSymbol];
 
@@ -81,29 +77,13 @@ function CreateCircle() {
       maxParticipants,
       collateralAmount: collateral,
       initialDepositAmount: initialDeposit,
-      inviteCode,
       tokenSymbol,
     });
   }
 
   useEffect(() => {
-    if (!isConfirmed || savedLocally || !createdCircleAddress || !address) return;
-
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(`pending-invite:${address}`, inviteCode);
-      window.localStorage.setItem(`invite:${address}`, inviteCode);
-    }
-
-    registerInvite({
-      data: {
-        codeHash: hashInviteCode(inviteCode),
-        circleAddress: createdCircleAddress,
-        chainId: monadTestnet.id,
-      },
-    }).catch(() => {});
-
-    setSavedLocally(true);
-  }, [address, createdCircleAddress, inviteCode, isConfirmed, savedLocally]);
+    if (!isConfirmed || !createdCircleAddress || !address) return;
+  }, [address, createdCircleAddress, isConfirmed]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -127,18 +107,8 @@ function CreateCircle() {
           <div className="rounded-2xl bg-moss/10 border border-moss/30 p-6 space-y-4">
             <h2 className="font-semibold">Circle created 🎉</h2>
             <p className="text-sm text-foreground/70">
-              Share this invite code with the people you're inviting. It's shown only once — save it somewhere
-              safe before you leave this page.
+              You can now open the group page and add the wallet addresses of the fellow savers you want to invite.
             </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-background text-sm font-mono break-all">{inviteLink(inviteCode)}</code>
-              <button
-                onClick={() => navigator.clipboard.writeText(inviteLink(inviteCode))}
-                className="px-3 py-2 rounded-lg bg-foreground text-background text-xs font-medium"
-              >
-                Copy
-              </button>
-            </div>
             <button
               onClick={() => navigate({ to: "/dashboard" })}
               className="px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium"
