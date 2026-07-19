@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronDown, Wallet } from "lucide-react";
+import { ChevronDown, Wallet, Mail } from "lucide-react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { monadTestnet } from "@/lib/web3/chain";
+import { usePendingInvitations } from "@/hooks/useCircles";
 
 function short(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -16,6 +17,7 @@ export function WalletButton() {
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: isSwitchPending } = useSwitchChain();
+  const { data: pendingInvites } = usePendingInvitations();
 
   const injectedConnector = connectors.find((connector) => connector.id === "injected") ?? connectors[0];
 
@@ -48,7 +50,14 @@ export function WalletButton() {
           aria-haspopup="menu"
           aria-expanded={menuOpen}
         >
-          <Wallet className="size-3.5" />
+          <div className="relative">
+            <Wallet className="size-3.5" />
+            {pendingInvites && pendingInvites.length > 0 && (
+              <span className="absolute -top-1 -right-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-accent text-background rounded-full">
+                {pendingInvites.length > 9 ? "9+" : pendingInvites.length}
+              </span>
+            )}
+          </div>
           <span className="max-w-[7rem] truncate">{wrongNetwork ? "Wrong network" : short(address)}</span>
           <ChevronDown className="size-3.5" />
         </button>
@@ -68,16 +77,37 @@ export function WalletButton() {
                 {isSwitchPending ? "Switching to Monad…" : "Switch to Monad Testnet"}
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  navigate({ to: "/dashboard" });
-                }}
-                className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-foreground/5"
-              >
-                Open dashboard
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate({ to: "/dashboard" });
+                  }}
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-foreground/5"
+                >
+                  Open dashboard
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate({ to: "/invites" });
+                  }}
+                  className="relative flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground hover:bg-foreground/5"
+                >
+                  <span className="flex items-center gap-2">
+                    <Mail className="size-3.5" />
+                    Check Invites
+                  </span>
+                  {pendingInvites && pendingInvites.length > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-accent/20 text-accent text-xs font-semibold">
+                      {pendingInvites.length}
+                    </span>
+                  )}
+                </button>
+              </>
             )}
 
             <div className="my-1 h-px bg-foreground/10" />
