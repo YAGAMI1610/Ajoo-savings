@@ -174,15 +174,23 @@ function Dashboard() {
 
           {pendingInvites && pendingInvites.length > 0 && (
             <div className="space-y-3">
-              {pendingInvites.map((invite) => (
+              <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">
+                🔔 {pendingInvites.length} pending invite{pendingInvites.length === 1 ? "" : "s"}
+              </p>
+              {pendingInvites.slice(0, 2).map((invite) => (
                 <div key={invite.address} className="rounded-2xl bg-surface border border-foreground/10 p-4 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">🔔 Pending invite</p>
-                    <p className="mt-1 text-sm">You've been invited to join <strong>{invite.name || shortAddress(invite.address)}</strong></p>
+                    <p className="text-sm font-medium text-foreground">{invite.name || shortAddress(invite.address)}</p>
+                    <p className="text-xs text-foreground/50 mt-1">Click to review and accept</p>
                   </div>
-                  <Link to={`/invite/${invite.address}`} className="px-3 py-2 rounded-full bg-foreground text-background text-sm font-medium">View & Join</Link>
+                  <Link to={`/invite/${invite.address}`} className="px-3 py-2 rounded-full bg-foreground text-background text-sm font-medium shrink-0">Join</Link>
                 </div>
               ))}
+              {pendingInvites.length > 2 && (
+                <Link to="/invites" className="block text-center py-2 rounded-full border border-foreground/10 bg-background text-foreground text-sm font-medium hover:bg-foreground/5 transition">
+                  View all {pendingInvites.length} invites
+                </Link>
+              )}
             </div>
           )}
 
@@ -196,14 +204,21 @@ function Dashboard() {
                     : "No pending invites found right now."}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => refreshPendingInvites?.()}
-                disabled={pendingInvitesLoading}
-                className="rounded-full border border-foreground/10 bg-background px-3 py-2 text-xs font-medium text-foreground/70 transition hover:bg-foreground/5 disabled:opacity-50"
-              >
-                {pendingInvitesLoading ? "Checking…" : "Check now"}
-              </button>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => refreshPendingInvites?.()}
+                  disabled={pendingInvitesLoading}
+                  className="rounded-full border border-foreground/10 bg-background px-3 py-2 text-xs font-medium text-foreground/70 transition hover:bg-foreground/5 disabled:opacity-50"
+                >
+                  {pendingInvitesLoading ? "Checking…" : "Check now"}
+                </button>
+                {pendingInvites && pendingInvites.length > 0 && (
+                  <Link to="/invites" className="rounded-full border border-foreground/10 bg-background px-3 py-2 text-xs font-medium text-foreground/70 transition hover:bg-foreground/5">
+                    View all
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
 

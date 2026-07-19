@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as GroupRouteImport } from './routes/group'
+import { Route as InvitesRouteImport } from './routes/invites'
 import { Route as PayoutRouteImport } from './routes/payout'
 import { Route as InviteAddressRouteImport } from './routes/invite.$address'
 import { Route as JoinCodeRouteImport } from './routes/join.$code'
@@ -37,6 +38,11 @@ const GroupRoute = GroupRouteImport.update({
   path: '/group',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InvitesRoute = InvitesRouteImport.update({
+  id: '/invites',
+  path: '/invites',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PayoutRoute = PayoutRouteImport.update({
   id: '/payout',
   path: '/payout',
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
   '/group': typeof GroupRoute
+  '/invites': typeof InvitesRoute
   '/payout': typeof PayoutRoute
   '/invite/$address': typeof InviteAddressRoute
   '/join/$code': typeof JoinCodeRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
   '/group': typeof GroupRoute
+  '/invites': typeof InvitesRoute
   '/payout': typeof PayoutRoute
   '/invite/$address': typeof InviteAddressRoute
   '/join/$code': typeof JoinCodeRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/create': typeof CreateRoute
   '/dashboard': typeof DashboardRoute
   '/group': typeof GroupRoute
+  '/invites': typeof InvitesRoute
   '/payout': typeof PayoutRoute
   '/invite/$address': typeof InviteAddressRoute
   '/join/$code': typeof JoinCodeRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/create'
     | '/dashboard'
     | '/group'
+    | '/invites'
     | '/payout'
     | '/invite/$address'
     | '/join/$code'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/create'
     | '/dashboard'
     | '/group'
+    | '/invites'
     | '/payout'
     | '/invite/$address'
     | '/join/$code'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/create'
     | '/dashboard'
     | '/group'
+    | '/invites'
     | '/payout'
     | '/invite/$address'
     | '/join/$code'
@@ -116,6 +128,7 @@ export interface RootRouteChildren {
   CreateRoute: typeof CreateRoute
   DashboardRoute: typeof DashboardRoute
   GroupRoute: typeof GroupRoute
+  InvitesRoute: typeof InvitesRoute
   PayoutRoute: typeof PayoutRoute
   InviteAddressRoute: typeof InviteAddressRoute
   JoinCodeRoute: typeof JoinCodeRoute
@@ -151,6 +164,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GroupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/invites': {
+      id: '/invites'
+      path: '/invites'
+      fullPath: '/invites'
+      preLoaderRoute: typeof InvitesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/payout': {
       id: '/payout'
       path: '/payout'
@@ -180,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   CreateRoute: CreateRoute,
   DashboardRoute: DashboardRoute,
   GroupRoute: GroupRoute,
+  InvitesRoute: InvitesRoute,
   PayoutRoute: PayoutRoute,
   InviteAddressRoute: InviteAddressRoute,
   JoinCodeRoute: JoinCodeRoute,

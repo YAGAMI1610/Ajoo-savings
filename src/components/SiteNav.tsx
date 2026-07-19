@@ -4,6 +4,7 @@ import { WalletButton } from "./WalletButton";
 const links = [
   { to: "/", label: "Home" },
   { to: "/dashboard", label: "Dashboard" },
+  { to: "/invites", label: "Invites" },
   { to: "/group", label: "Group" },
   { to: "/payout", label: "Payout" },
 ] as const;
