@@ -141,7 +141,6 @@ export function useCreateCircle() {
     contributionAmount: string;
     frequency: Frequency;
     maxParticipants: number;
-    collateralAmount: string;
     tokenSymbol: TokenSymbol;
   }) {
     const token = TOKENS[params.tokenSymbol];
@@ -157,7 +156,7 @@ export function useCreateCircle() {
         parseUnits(params.contributionAmount || "0", token.decimals),
         BigInt(FREQUENCY_SECONDS[params.frequency]),
         params.maxParticipants,
-        parseUnits(params.collateralAmount || "0", token.decimals),
+        0n,
         inviteCodeHash,
         token.address,
       ],

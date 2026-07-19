@@ -135,14 +135,6 @@ function JoinCircle() {
               }
             />
             <Row label="Members" value={`${circle.members.length} / ${circle.maxParticipants}`} />
-            <Row
-              label="Collateral required"
-              value={
-                circle.collateralRequired
-                  ? `${formatUnits(circle.collateralRequired, circle.tokenConfig.decimals)} ${circle.tokenConfig.symbol}`
-                  : "None"
-              }
-            />
 
             {address && <p className="text-xs text-foreground/60">Connected wallet: {address.slice(0, 8)}…{address.slice(-4)}</p>}
             {circle.status !== "Open" ? (

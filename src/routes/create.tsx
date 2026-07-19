@@ -28,8 +28,7 @@ function CreateCircle() {
   const [tokenSymbol, setTokenSymbol] = useState<TokenSymbol>("MON");
   const [amount, setAmount] = useState("0.05");
   const [frequency, setFrequency] = useState<Frequency>("weekly");
-  const [maxParticipants, setMaxParticipants] = useState(5);
-  const [collateral, setCollateral] = useState("0");
+  const [maxParticipants, setMaxParticipants] = useState("5");
   const [acknowledged, setAcknowledged] = useState(false);
 
   const selectedToken = TOKENS[tokenSymbol];
@@ -68,13 +67,20 @@ function CreateCircle() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
+
+    const contributionValue = amount.trim();
+    const parsedContributionAmount = Number(contributionValue);
+    const parsedMaxParticipants = Number(maxParticipants.trim());
+
+    if (!Number.isFinite(parsedContributionAmount) || parsedContributionAmount <= 0) return;
+    if (!Number.isInteger(parsedMaxParticipants) || parsedMaxParticipants < 2 || parsedMaxParticipants > 50) return;
+
     createCircle({
       name: name.trim(),
       description: description.trim(),
-      contributionAmount: amount,
+      contributionAmount: contributionValue,
       frequency,
-      maxParticipants,
-      collateralAmount: collateral,
+      maxParticipants: parsedMaxParticipants,
       tokenSymbol,
     });
   }
@@ -146,7 +152,6 @@ function CreateCircle() {
                       onClick={() => {
                         setTokenSymbol(sym);
                         setAmount(sym === "USDC" ? "5" : "0.05");
-                        setCollateral("0");
                       }}
                       className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition text-left ${
                         tokenSymbol === sym
@@ -171,12 +176,12 @@ function CreateCircle() {
             <div className="grid grid-cols-2 gap-4">
               <Field label={`Contribution amount (${selectedToken.symbol})`}>
                 <input
-                  type="number"
-                  min={selectedToken.isNative ? "0.001" : "0.01"}
-                  step={selectedToken.isNative ? "0.001" : "0.01"}
+                  type="text"
+                  inputMode="decimal"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="input"
+                  placeholder="0.05"
                   required
                 />
               </Field>
@@ -191,23 +196,13 @@ function CreateCircle() {
             <div className="grid grid-cols-2 gap-4">
               <Field label="Max participants">
                 <input
-                  type="number"
-                  min={2}
-                  max={50}
+                  type="text"
+                  inputMode="numeric"
                   value={maxParticipants}
-                  onChange={(e) => setMaxParticipants(Number(e.target.value))}
+                  onChange={(e) => setMaxParticipants(e.target.value)}
                   className="input"
+                  placeholder="5"
                   required
-                />
-              </Field>
-              <Field label={`Collateral per member (${selectedToken.symbol}, optional)`}>
-                <input
-                  type="number"
-                  min="0"
-                  step={selectedToken.isNative ? "0.001" : "0.01"}
-                  value={collateral}
-                  onChange={(e) => setCollateral(e.target.value)}
-                  className="input"
                 />
               </Field>
             </div>

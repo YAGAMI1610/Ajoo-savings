@@ -20,7 +20,6 @@ const principles = [
   { text: "Invite-only — never browsable, never public", emoji: "🔒" },
   { text: "Payout order drawn once, on-chain, unchangeable", emoji: "🎲" },
   { text: "Every contribution and payout is a real transaction", emoji: "⛓️" },
-  { text: "Optional collateral protects the people still waiting their turn", emoji: "🛡️" },
   { text: "Built for family and close friends, not strangers", emoji: "🤝" },
   { text: "No spreadsheets, no screenshots, no chasing anyone", emoji: "📵" },
 ];
