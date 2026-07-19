@@ -3,7 +3,14 @@
     "type": "function",
     "name": "join",
     "stateMutability": "payable",
-    "inputs": [{ "name": "inviteCode", "type": "string" }],
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "addInvitedAddress",
+    "stateMutability": "nonpayable",
+    "inputs": [{ "name": "invited", "type": "address" }],
     "outputs": []
   },
   {

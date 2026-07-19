@@ -36,7 +36,7 @@ function useCountdown(deadline?: bigint) {
 
 function Dashboard() {
   const { address, isConnected } = useAccount();
-  const { data: pendingInvites } = usePendingInvitations();
+  const { data: pendingInvites, refetch: refreshPendingInvites, isLoading: pendingInvitesLoading } = usePendingInvitations();
   const { data: myCircles, isLoading: circlesLoading } = useMyCircles(address);
   const circleAddresses = useMemo(() => ((myCircles as `0x${string}`[] | undefined) ?? []).filter(Boolean), [myCircles]);
   const [selectedCircle, setSelectedCircle] = useState<`0x${string}` | undefined>();
@@ -180,13 +180,42 @@ function Dashboard() {
                     <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">🔔 Pending invite</p>
                     <p className="mt-1 text-sm">You've been invited to join <strong>{invite.name || shortAddress(invite.address)}</strong></p>
                   </div>
-                  <Link to={`/join/${invite.address}`} className="px-3 py-2 rounded-full bg-foreground text-background text-sm font-medium">View & Join</Link>
+                  <Link to={`/invite/${invite.address}`} className="px-3 py-2 rounded-full bg-foreground text-background text-sm font-medium">View & Join</Link>
                 </div>
               ))}
             </div>
           )}
 
+          <div className="rounded-2xl border border-foreground/10 bg-surface p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-foreground/50 font-medium">Invite status</p>
+                <p className="mt-1 text-sm text-foreground/70">
+                  {pendingInvites && pendingInvites.length > 0
+                    ? `${pendingInvites.length} pending invite${pendingInvites.length === 1 ? "" : "s"} ready to review.`
+                    : "No pending invites found right now."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => refreshPendingInvites?.()}
+                disabled={pendingInvitesLoading}
+                className="rounded-full border border-foreground/10 bg-background px-3 py-2 text-xs font-medium text-foreground/70 transition hover:bg-foreground/5 disabled:opacity-50"
+              >
+                {pendingInvitesLoading ? "Checking…" : "Check now"}
+              </button>
+            </div>
+          </div>
+
           <div className="rounded-[2rem] bg-foreground text-background p-7 md:p-9 space-y-4">
+            {circle.status === "Open" && circle.creator?.toLowerCase() === address?.toLowerCase() && (
+              <div className="rounded-2xl border border-background/10 bg-background/10 p-4 text-sm">
+                <p className="font-semibold">Kick off the circle</p>
+                <p className="mt-1 text-background/70">
+                  Start by depositing the first round amount so the circle is ready. Invited members will be prompted to contribute for the round when they join.
+                </p>
+              </div>
+            )}
             <Row
               label="Contribution"
               value={

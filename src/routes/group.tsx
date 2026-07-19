@@ -1,11 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useAccount } from "wagmi";
 import { useState } from "react";
+import { toast } from "sonner";
 import { formatUnits, isAddress, parseUnits } from "viem";
 import { SiteNav } from "@/components/SiteNav";
 import { useMyCircles, useCircleState, useContribute, useFundCircle, useMemberInfo, useTokenApproval, usePendingPayout, useAddInvitedAddress, useWithdrawPayout, useVoteToDelete, useDeleteCircle } from "@/hooks/useCircles";
 import { buildMembers, shortAddress } from "@/lib/circleMembers";
 import { IS_FACTORY_CONFIGURED } from "@/lib/web3/contracts";
+import { appendCircleActivity, useCircleActivityFeed } from "@/lib/activityFeed";
 
 export const Route = createFileRoute("/group")({
   component: GroupDetails,
@@ -40,6 +42,7 @@ function GroupDetails() {
     isConfirming: isApproveConfirming,
   } = useTokenApproval(circle?.token, activeCircle);
   const [copied, setCopied] = useState(false);
+  const activity = useCircleActivityFeed(activeCircle);
 
   if (!IS_FACTORY_CONFIGURED || !activeCircle || !circle) {
     return (
@@ -105,13 +108,30 @@ function GroupDetails() {
         </div>
 
         {circle.status === "Open" && circle.creator?.toLowerCase() === address?.toLowerCase() && (
-          <InviteCard onAddMember={addInvitedAddress} inviteAddress={inviteAddress} setInviteAddress={setInviteAddress} isInvitePending={isInvitePending || isInviteConfirming} />
+          <InviteCard
+            onAddMember={(invited) => {
+              addInvitedAddress(invited);
+              appendCircleActivity(activeCircle, {
+                circleAddress: activeCircle,
+                actor: address ?? "unknown",
+                type: "invite-sent",
+                title: "Invite sent",
+                message: `${address?.slice(0, 8) ?? "A creator"}…${address?.slice(-4) ?? ""} invited ${invited.slice(0, 8)}…${invited.slice(-4)} to join the circle.`,
+              });
+              toast.success("Invite sent. The invited wallet will see it on the dashboard once connected.");
+            }}
+            inviteAddress={inviteAddress}
+            setInviteAddress={setInviteAddress}
+            isInvitePending={isInvitePending || isInviteConfirming}
+          />
         )}
 
         {circle.creator?.toLowerCase() === address?.toLowerCase() && (
           <div className="rounded-2xl bg-surface border border-foreground/10 p-6 space-y-3">
             <h3 className="text-sm font-semibold">Fund this circle</h3>
-            <p className="text-sm text-foreground/60">Add extra MON or USDC to the circle balance. This is charged alongside the gas for the funding transaction.</p>
+            <p className="text-sm text-foreground/60">
+              As the creator, fund the circle first so the round can begin. After that, each invited member will be asked to contribute for the round before a payout recipient is chosen.
+            </p>
             <div className="flex gap-2">
               <input
                 type="number"
@@ -126,6 +146,13 @@ function GroupDetails() {
                 onClick={() => {
                   if (!fundAmount) return;
                   fund(parseUnits(fundAmount, isNative ? 18 : 6));
+                  appendCircleActivity(activeCircle, {
+                    circleAddress: activeCircle,
+                    actor: address ?? "unknown",
+                    type: "deposit",
+                    title: "Circle funding requested",
+                    message: `${address?.slice(0, 8) ?? "A member"}…${address?.slice(-4) ?? ""} requested a deposit to fund the circle.`,
+                  });
                 }}
                 disabled={isFundPending || isFundConfirming}
                 className="px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition disabled:opacity-50"
@@ -141,6 +168,7 @@ function GroupDetails() {
         {circle.status === "Active" && member?.exists && (
           <div className="rounded-2xl bg-surface border border-foreground/10 p-6 space-y-3">
             <h3 className="text-sm font-semibold">Round {circle.currentRound} contribution</h3>
+            <p className="text-sm text-foreground/60">Once the creator has funded the circle, each member contributes for the round and the payout recipient is selected automatically.</p>
             {member.hasContributedThisRound ? (
               <p className="text-sm text-moss font-medium">✓ You've contributed this round.</p>
             ) : !isNative && circle.contributionAmount && !hasSufficientAllowance(circle.contributionAmount) ? (
@@ -155,7 +183,17 @@ function GroupDetails() {
               </button>
             ) : (
               <button
-                onClick={() => circle.contributionAmount && contribute(circle.contributionAmount)}
+                onClick={() => {
+                  if (!circle.contributionAmount) return;
+                  contribute(circle.contributionAmount);
+                  appendCircleActivity(activeCircle, {
+                    circleAddress: activeCircle,
+                    actor: address ?? "unknown",
+                    type: "contribution",
+                    title: "Contribution submitted",
+                    message: `${address?.slice(0, 8) ?? "A member"}…${address?.slice(-4) ?? ""} submitted a contribution for the current round.`,
+                  });
+                }}
                 disabled={isPending || isConfirming}
                 className="px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition disabled:opacity-50"
               >
@@ -173,7 +211,16 @@ function GroupDetails() {
           <div className="rounded-2xl bg-moss/10 border border-moss/30 p-6 space-y-3">
             <h3 className="text-sm font-semibold">Your payout is ready — Withdraw {formatUnits(myPendingPayout, circle.tokenConfig.decimals)} {circle.tokenConfig.symbol}</h3>
             <button
-              onClick={() => withdrawPayout()}
+              onClick={() => {
+                withdrawPayout();
+                appendCircleActivity(activeCircle, {
+                  circleAddress: activeCircle,
+                  actor: address ?? "unknown",
+                  type: "withdrawal",
+                  title: "Payout withdrawal requested",
+                  message: `${address?.slice(0, 8) ?? "A member"}…${address?.slice(-4) ?? ""} requested a payout withdrawal.`,
+                });
+              }}
               disabled={isWithdrawPending || isWithdrawConfirming}
               className="px-5 py-2.5 rounded-full bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition disabled:opacity-50"
             >
@@ -208,6 +255,23 @@ function GroupDetails() {
             )}
           </div>
         )}
+
+        <div className="rounded-[2rem] border border-foreground/10 bg-surface p-6">
+          <p className="text-xs uppercase tracking-[0.2em] text-foreground/50">Circle activity feed</p>
+          <div className="mt-4 space-y-3">
+            {activity.length === 0 ? (
+              <p className="text-sm text-foreground/60">No circle updates yet. Deposits, contributions, invite decisions, and payouts will appear here.</p>
+            ) : (
+              activity.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-foreground/10 bg-background p-3 text-sm">
+                  <p className="font-medium text-foreground">{item.title}</p>
+                  <p className="mt-1 text-foreground/60">{item.message}</p>
+                  <p className="mt-2 text-[11px] uppercase tracking-[0.2em] text-foreground/40">{new Date(item.createdAt).toLocaleString()}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
         <div className="space-y-3">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/50">Members</h3>
@@ -266,6 +330,7 @@ function InviteCard({
           onClick={() => {
             if (!isAddress(inviteAddress)) return;
             onAddMember(inviteAddress as `0x${string}`);
+            toast.success("Invite sent. The invited wallet will see it on the dashboard once connected.");
             setInviteAddress("");
           }}
           disabled={isInvitePending || !isAddress(inviteAddress)}

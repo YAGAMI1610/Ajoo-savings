@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { toast } from "sonner";
 import { parseUnits } from "viem";
 import { generateInviteCode, hashInviteCode } from "@/lib/invite";
 import {
@@ -342,13 +343,14 @@ export function useTokenApproval(tokenAddress?: `0x${string}`, spender?: `0x${st
 /** Pending invitations for the connected wallet. */
 export function usePendingInvitations() {
   const { address } = useAccount();
+  const hasShownToastRef = useRef<string | null>(null);
 
   const invited = useReadContract({
     address: CIRCLE_FACTORY_ADDRESS,
     abi: circleFactoryAbi,
     functionName: "getInvitedCirclesForMember",
     args: address ? [address] : undefined,
-    query: { enabled: IS_FACTORY_CONFIGURED && Boolean(address) },
+    query: { enabled: IS_FACTORY_CONFIGURED && Boolean(address), refetchInterval: 5000 },
   });
 
   const circleAddresses = (invited.data as `0x${string}`[] | undefined) ?? [];
@@ -358,7 +360,7 @@ export function usePendingInvitations() {
     { address: addr, abi: circleAbi, functionName: "getMember", args: address ? [address] : undefined },
   ]);
 
-  const { data, isLoading } = useReadContracts({ contracts: calls, query: { enabled: Boolean(circleAddresses.length > 0 && address) } });
+  const { data, isLoading, refetch: refetchContracts } = useReadContracts({ contracts: calls, query: { enabled: Boolean(circleAddresses.length > 0 && address) } });
 
   const parsed = useMemo(() => {
     if (!data || data.length === 0) return [] as { address: `0x${string}`; name: string }[];
@@ -376,5 +378,20 @@ export function usePendingInvitations() {
     return out;
   }, [data, circleAddresses]);
 
-  return { data: parsed, isLoading, rawInvited: invited.data };
+  useEffect(() => {
+    if (!address || !parsed.length) return;
+    const signature = `${address}:${parsed.map((item) => item.address).join(",")}`;
+    if (hasShownToastRef.current === signature) return;
+    hasShownToastRef.current = signature;
+    toast.success(`You have ${parsed.length} pending invitation${parsed.length > 1 ? "s" : ""}. Open the dashboard to join now.`);
+  }, [address, parsed]);
+
+  const refreshInvites = useCallback(async () => {
+    await Promise.allSettled([
+      invited.refetch ? invited.refetch() : Promise.resolve(undefined),
+      refetchContracts ? refetchContracts() : Promise.resolve(undefined),
+    ]);
+  }, [invited, refetchContracts]);
+
+  return { data: parsed, isLoading, rawInvited: invited.data, refetch: refreshInvites };
 }
