@@ -39,14 +39,14 @@ function InviteDecisionPage() {
       toast.error("Please connect your wallet first");
       return;
     }
-    
+
     if (decision === "accepted") {
-      if (!circle?.collateralRequired) {
-        toast.error("Circle information not loaded yet. Please try again.");
+      if (circleLoading || !circle || circle.collateralRequired === undefined) {
+        toast.error("Circle information is still loading. Please wait a moment and try again.");
         return;
       }
       setStatus("joining");
-      join(circle.collateralRequired); // Join with required collateral
+      join(circle.collateralRequired ?? 0n);
     } else {
       setStatus("rejected");
       appendCircleActivity(circleAddress, {
@@ -159,10 +159,10 @@ function InviteDecisionPage() {
               <div className="flex flex-wrap gap-3">
                 <button
                   onClick={() => handleDecision("accepted")}
-                  disabled={isJoinPending || !isConnected || !circle}
+                  disabled={isJoinPending || !isConnected || circleLoading || !circle || circle.collateralRequired === undefined}
                   className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90 transition disabled:opacity-50"
                 >
-                  {!isConnected ? "Connect wallet to join" : isJoinPending ? "Processing…" : "Accept invite & join"}
+                  {!isConnected ? "Connect wallet to join" : circleLoading ? "Loading circle…" : isJoinPending ? "Processing…" : "Accept invite & join"}
                 </button>
                 <button
                   onClick={() => handleDecision("rejected")}
